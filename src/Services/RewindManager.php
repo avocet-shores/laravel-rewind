@@ -9,7 +9,6 @@ use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Traits\Rewindable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class RewindManager
@@ -91,8 +90,6 @@ class RewindManager
     }
 
     /**
-     *
-     *
      * @throws LaravelRewindException
      */
     public function getVersionAttributes(Model $model, int $targetVersion): array
@@ -105,10 +102,6 @@ class RewindManager
 
     /**
      * Build an array of attributes representing the given version
-     *
-     * @param $model
-     * @param int $targetVersion
-     * @return array
      */
     protected function buildAttributesForVersion($model, int $targetVersion): array
     {
