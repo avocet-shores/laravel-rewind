@@ -8,6 +8,7 @@ use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Traits\Rewindable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -61,90 +62,126 @@ class RewindManager
             throw new VersionDoesNotExistException('The specified version does not exist.');
         }
 
-        // Identify the model's current version
-        $currentVersion = $this->determineCurrentVersion($model);
+        $model->fill(
+            $this->buildAttributesForVersion($model, $targetVersion)
+        );
 
-        // Run the approach engine to determine the best way to get to the target version
-        $bestApproach = $this->approachEngine->run($model, $currentVersion, $targetVersion);
-
-        // Apply the best approach
-        switch ($bestApproach->method) {
-            case ApproachMethod::None:
-                // No action needed
-                break;
-            case ApproachMethod::Direct:
-                $this->applyDiffs($model, $currentVersion, $targetVersion);
-                break;
-            case ApproachMethod::From_Snapshot:
-                $this->applyDiffsFromSnapshot($model, $bestApproach->snapshot, $targetVersion);
-                break;
-        }
-    }
-
-    protected function applyDiffsFromSnapshot(Model $model, RewindVersion $snapshotRecord, int $targetVersion): void
-    {
-        // Apply snapshot without saving to reduce the number of save operations
-        $this->applySnapshot($model, $snapshotRecord);
-
-        $this->applyDiffs($model, $snapshotRecord->version, $targetVersion);
+        $this->updateModelVersionAndSave($model, $targetVersion);
     }
 
     /**
-     * Apply partial diffs in reverse or forward from currentVersion to targetVersion.
+     * Replicates the given model and fills it with the attributes from the specified version.
      *
-     * Example: If you're at version 10 and want to go to version 7, you'll:
-     *  - get diff for v10, revert it,
-     *  - then v9, revert it,
-     *  - then v8, revert it,
-     *  - stopping once we reach v7.
+     * @throws LaravelRewindException
      */
-    protected function applyDiffs($model, int $currentVersion, int $targetVersion): void
+    public function cloneModel(Model $model, int $targetVersion): Model
     {
+        $this->assertRewindable($model);
         $this->eagerLoadVersions($model);
 
-        DB::transaction(function () use ($model, $currentVersion, $targetVersion) {
+        $attributes = $this->buildAttributesForVersion($model, $targetVersion);
 
-            if ($currentVersion > $targetVersion) {
-                // Step downward from currentVersion-1 until targetVersion
-                for ($ver = $currentVersion; $ver > $targetVersion; $ver--) {
-                    $versionRec = $model->versions
-                        ->where('version', $ver)
-                        ->first();
+        $newModel = $model->replicate(
+            except: ['current_version']
+        );
+        $newModel->fill($attributes);
+        $newModel->save();
 
-                    // If there's no partial diff for $ver (e.g. it doesn't exist), skip
-                    if (! $versionRec) {
-                        continue;
-                    }
+        return $newModel;
+    }
 
-                    // Reverse the partial diff by applying "old_values"
-                    $this->applyPartialDiffReverse($model, $versionRec);
+    /**
+     *
+     *
+     * @throws LaravelRewindException
+     */
+    public function getVersionAttributes(Model $model, int $targetVersion): array
+    {
+        $this->assertRewindable($model);
+        $this->eagerLoadVersions($model);
+
+        return $this->buildAttributesForVersion($model, $targetVersion);
+    }
+
+    /**
+     * Build an array of attributes representing the given version
+     *
+     * @param $model
+     * @param int $targetVersion
+     * @return array
+     */
+    protected function buildAttributesForVersion($model, int $targetVersion): array
+    {
+        $model->load('versions');
+        $currentVersion = $this->determineCurrentVersion($model);
+
+        // First, determine the fastest approach
+        $approach = $this->approachEngine->run($model, $currentVersion, $targetVersion);
+
+        return match ($approach->method) {
+            ApproachMethod::None => $model->toArray(),
+            ApproachMethod::Direct => $this->buildFromDiffs(
+                model: $model,
+                currentVersion: $currentVersion,
+                targetVersion: $targetVersion
+            ),
+            ApproachMethod::From_Snapshot => $this->buildFromDiffs(
+                model: $model,
+                currentVersion: $approach->snapshot->version,
+                targetVersion: $targetVersion,
+                snapshot: $approach->snapshot
+            ),
+        };
+    }
+
+    protected function buildFromDiffs($model, int $currentVersion, int $targetVersion, ?RewindVersion $snapshot = null): array
+    {
+        $attributes = is_null($snapshot) ?
+            $model->attributesToArray() :
+            $snapshot->new_values ?? [];
+
+        // Remove any attributes that are excluded
+        $attributes = Arr::except($attributes, $model->getExcludedRewindableAttributes());
+
+        if ($currentVersion > $targetVersion) {
+            // Step downward from currentVersion until targetVersion
+            for ($ver = $currentVersion; $ver > $targetVersion; $ver--) {
+                $versionRec = $model->versions
+                    ->where('version', $ver)
+                    ->first();
+
+                // If there's no partial diff for $ver (e.g. it doesn't exist), skip
+                if (! $versionRec) {
+                    continue;
                 }
-            } else {
-                // Step upward from currentVersion+1 until targetVersion
-                for ($ver = $currentVersion + 1; $ver <= $targetVersion; $ver++) {
-                    $versionRec = $model->versions
-                        ->where('version', $ver)
-                        ->first();
 
-                    // If there's no partial diff for $ver (e.g. if it was a snapshot or doesn't exist), skip
-                    if (! $versionRec) {
-                        continue;
-                    }
-
-                    // Apply the partial diff
-                    $this->applyPartialDiff($model, $versionRec);
-                }
+                // Reverse the partial diff by applying "old_values"
+                $attributes = array_merge($attributes, $versionRec->old_values);
             }
+        } else {
+            // Step upward from currentVersion+1 until targetVersion
+            for ($ver = $currentVersion + 1; $ver <= $targetVersion; $ver++) {
+                $versionRec = $model->versions
+                    ->where('version', $ver)
+                    ->first();
 
-            $this->updateModelVersion($model, $targetVersion);
+                // If there's no partial diff for $ver (e.g. if it was a snapshot or doesn't exist), skip
+                if (! $versionRec) {
+                    continue;
+                }
 
-        });
+                // Apply the partial diff
+                $attributes = array_merge($attributes, $versionRec->new_values);
+            }
+        }
+
+        return $attributes;
     }
 
     /**
      * Update the model's current_version to the specified version without triggering Rewind events
      */
-    protected function updateModelVersion($model, int $version): void
+    protected function updateModelVersionAndSave($model, int $version): void
     {
         if (! $this->modelHasCurrentVersionColumn($model)) {
             return;
@@ -154,46 +191,6 @@ class RewindManager
 
         $model->current_version = $version;
         $model->save();
-
-        $model->enableRewindEvents();
-    }
-
-    protected function applyPartialDiff($model, $versionRec): void
-    {
-        $newValues = $versionRec->new_values;
-
-        foreach ($newValues as $key => $value) {
-            $model->setAttribute($key, $value);
-        }
-    }
-
-    /**
-     * Reverse partial diff means we set the model's attributes to "old_values"
-     * which represent the state before that version was applied.
-     */
-    protected function applyPartialDiffReverse($model, $versionRec): void
-    {
-        $oldValues = $versionRec->old_values;
-
-        foreach ($oldValues as $key => $value) {
-            $model->setAttribute($key, $value);
-        }
-    }
-
-    /**
-     * Apply a snapshot (full new_values).
-     * Optionally save the model after applying the snapshot.
-     */
-    protected function applySnapshot($model, RewindVersion $snapshotRecord, bool $shouldSave = false): void
-    {
-        $model->disableRewindEvents();
-        foreach (($snapshotRecord->new_values ?? []) as $key => $value) {
-            $model->setAttribute($key, $value);
-        }
-
-        if ($shouldSave) {
-            $model->save();
-        }
 
         $model->enableRewindEvents();
     }

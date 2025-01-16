@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
+ * @property array $old_values
+ * @property array $new_values
  * @property int $version
  */
 class RewindVersion extends Model

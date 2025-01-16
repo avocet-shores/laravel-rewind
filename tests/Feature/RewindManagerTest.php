@@ -28,8 +28,6 @@ it('rewinds a model to the previous version on rewind', function () {
         'body' => 'Original Body',
     ]);
 
-    $post->refresh();
-
     // Assert the model has current_version set to 1
     $this->assertSame(1, $post->current_version);
 
@@ -56,8 +54,6 @@ it('rewinds a model to the next version on fast-forward', function () {
         'title' => 'Original Title',
         'body' => 'Original Body',
     ]);
-
-    $post->refresh();
 
     // Assert the model has current_version set to 1
     $this->assertSame(1, $post->current_version);
@@ -93,8 +89,6 @@ it('creates a new max version when a model is updated while on a previous versio
         'title' => 'Original Title',
         'body' => 'Original Body',
     ]);
-
-    $post->refresh();
 
     // Assert the model has current_version set to 1
     $this->assertSame(1, $post->current_version);
@@ -134,8 +128,6 @@ it('can jump to a specified version', function () {
         'body' => 'Original Body',
     ]);
 
-    $post->refresh();
-
     // Assert the model has current_version set to 1
     $this->assertSame(1, $post->current_version);
 
@@ -172,7 +164,6 @@ it('can handle complex version history and goTo calls', function () {
         'title' => 'Original Title',
         'body' => 'Original Body',
     ]);
-    $post->refresh();
 
     $this->assertDatabaseHas('rewind_versions', [
         'model_id' => $post->id,
@@ -275,6 +266,59 @@ it('can handle complex version history and goTo calls', function () {
     $this->assertSame(8, $post->current_version);
     $this->assertSame('Updated Title One Last Time', $post->title);
     $this->assertSame('Updated Body', $post->body);
+});
+
+it('can clone a model with a given versions data', function () {
+    // Arrange
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+
+    // Assert the model has current_version set to 1
+    $this->assertSame(1, $post->current_version);
+
+    $post->update([
+        'title' => 'Updated Title',
+        'body' => 'Updated Body',
+    ]);
+
+    $this->assertSame(2, $post->current_version);
+
+    // Act: Clone the model at version 1
+    $clonedPost = Rewind::cloneModel($post, 1);
+
+    // Assert: The cloned model should have the data from version 1
+    $this->assertSame('Original Title', $clonedPost->title);
+    $this->assertSame('Original Body', $clonedPost->body);
+    $this->assertSame(1, $clonedPost->current_version);
+});
+
+it('can return an array of the version\'s attributes', function () {
+    // Arrange
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+
+    // Assert the model has current_version set to 1
+    $this->assertSame(1, $post->current_version);
+
+    $post->update([
+        'title' => 'Updated Title',
+        'body' => 'Updated Body',
+    ]);
+
+    $this->assertSame(2, $post->current_version);
+
+    // Act: Get the attributes of version 1
+    $version1Attributes = Rewind::getVersionAttributes($post, 1);
+
+    // Assert: The attributes should match the data from version 1
+    $this->assertSame('Original Title', $version1Attributes['title']);
+    $this->assertSame('Original Body', $version1Attributes['body']);
 });
 
 it('throws an exception when jumping to a version that does not exist', function () {

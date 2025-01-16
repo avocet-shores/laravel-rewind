@@ -20,7 +20,7 @@ trait Rewindable
 {
     protected bool $disableRewindEvents = false;
 
-    protected function getExcludedRewindableAttributes(): array
+    public function getExcludedRewindableAttributes(): array
     {
         // Merge the default exclusions with any custom exclusions
         $defaultExclusions = [
