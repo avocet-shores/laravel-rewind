@@ -138,40 +138,60 @@ That’s it! Now your model’s changes are recorded in the `rewind_versions` ta
 
 ## Usage
 
-1. Updating a Model
+### Creating/Updating a Model
 
-    ```php
-    $post = Post::find(1);
-    $post->title = "New Title";
-    $post->save();  
-    // A new version is automatically created
-    ```
+```php
+$post = Post::find(1);
+$post->title = "New Title";
+$post->save();  
+// A new version is automatically created
+```
 
-2. Using the Rewind Facade
+### Using the Rewind Facade
 
-    ```php
-    use AvocetShores\LaravelRewind\Facades\Rewind;
+```php
+use AvocetShores\LaravelRewind\Facades\Rewind;
 
-    // Rewind two versions back
-    Rewind::rewind($post, 2);
+// Rewind two versions back
+Rewind::rewind($post, 2);
 
-    // Fast-forward one version
-    Rewind::fastForward($post);
+// Fast-forward one version
+Rewind::fastForward($post);
 
-    // Jump directly to a specific version
-    Rewind::goTo($post, 5);
-    ```
-3. Excluding attributes from versioning
+// Jump directly to a specific version
+Rewind::goTo($post, 5);
+```
 
-    If you have attributes that you don't want to track, you can exclude them by adding an `excludedFromVersioning` 
-   method to your model:
+### Excluding attributes from versioning
 
-    ```php
-    public static function excludedFromVersioning(): array
-    {
-        return ['password', 'api_token'];
-    }
-    ```
+If you have attributes that you don't want to track, you can exclude them by adding an `excludedFromVersioning` 
+method to your model:
+
+```php
+public static function excludedFromVersioning(): array
+{
+    return ['password', 'api_token'];
+}
+```
+
+### Build a specific version's attributes
+
+Because Rewind stores a combination of partial diffs and snapshots, there's no guarantee a RewindVersion contains 
+all the data for a version. However, the getVersionAttributes method will build and return a complete set of attributes
+for a specific version.
+
+```php
+$attributes = Rewind::getVersionAttributes($post, 7);
+```
+
+
+### Cloning a Model at a specific version
+
+You can clone a model by using the `cloneModel` function. This will create a new model and fill it with the attributes from the specified version.
+
+```php
+$clonedPost = Rewind::cloneModel($post, 5);
+```
 
 ## Testing
 
