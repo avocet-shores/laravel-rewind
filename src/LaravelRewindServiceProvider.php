@@ -3,7 +3,11 @@
 namespace AvocetShores\LaravelRewind;
 
 use AvocetShores\LaravelRewind\Commands\AddVersionTrackingColumnCommand;
+use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
+use AvocetShores\LaravelRewind\Listeners\CreateRewindVersion;
+use AvocetShores\LaravelRewind\Listeners\CreateRewindVersionQueued;
 use AvocetShores\LaravelRewind\Services\RewindManager;
+use Illuminate\Support\Facades\Event;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -26,5 +30,22 @@ class LaravelRewindServiceProvider extends PackageServiceProvider
     public function registeringPackage(): void
     {
         $this->app->bind('laravel-rewind-manager', RewindManager::class);
+    }
+
+    public function bootingPackage(): void
+    {
+        $async = config('rewind.async_listener', false);
+
+        if ($async) {
+            Event::listen(
+                RewindVersionCreating::class,
+                [CreateRewindVersionQueued::class, 'handle']
+            );
+        } else {
+            Event::listen(
+                RewindVersionCreating::class,
+                [CreateRewindVersion::class, 'handle']
+            );
+        }
     }
 }
