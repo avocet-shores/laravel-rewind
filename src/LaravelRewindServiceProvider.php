@@ -34,7 +34,7 @@ class LaravelRewindServiceProvider extends PackageServiceProvider
 
     public function bootingPackage(): void
     {
-        $async = config('rewind.async_listener', false);
+        $async = config('rewind.listener_should_queue', false);
 
         if ($async) {
             Event::listen(

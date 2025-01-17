@@ -78,9 +78,19 @@ return [
     | this value to suit your application's needs. Higher values reduce
     | the amount of data stored at the cost of longer traversal times.
     |
-    | **Set this to a high value if you only intend on using undo/redo.**
-    |
     */
 
     'snapshot_interval' => env('LARAVEL_REWIND_SNAPSHOT_INTERVAL', 10),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Listener Should Queue
+    |--------------------------------------------------------------------------
+    |
+    | If true, the package will queue the Create Rewind Version listener that handles the RewindVersionCreating event.
+    | If false, the listener will run synchronously.
+    |
+    */
+
+    'listener_should_queue' => env('LARAVEL_REWIND_LISTENER_SHOULD_QUEUE', false),
 ];
