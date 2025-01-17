@@ -15,11 +15,6 @@ class LaravelRewindServiceProvider extends PackageServiceProvider
 {
     public function configurePackage(Package $package): void
     {
-        /*
-         * This class is a Package Service Provider
-         *
-         * More info: https://github.com/spatie/laravel-package-tools
-         */
         $package
             ->name('laravel-rewind')
             ->hasConfigFile()
@@ -39,12 +34,12 @@ class LaravelRewindServiceProvider extends PackageServiceProvider
         if ($async) {
             Event::listen(
                 RewindVersionCreating::class,
-                [CreateRewindVersionQueued::class, 'handle']
+                CreateRewindVersionQueued::class
             );
         } else {
             Event::listen(
                 RewindVersionCreating::class,
-                [CreateRewindVersion::class, 'handle']
+                CreateRewindVersion::class
             );
         }
     }
