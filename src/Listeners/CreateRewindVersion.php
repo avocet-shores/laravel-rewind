@@ -11,9 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 class CreateRewindVersion
 {
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     public function handle(RewindVersionCreating $event): void
     {
@@ -72,7 +70,7 @@ class CreateRewindVersion
 
             // Check if the snapshot interval triggers a mandatory snapshot
             $interval = config('rewind.snapshot_interval', 10);
-            if (!$isSnapshot) {
+            if (! $isSnapshot) {
                 $isSnapshot = ($nextVersion % $interval === 0) || $nextVersion === 1;
             }
 
@@ -84,13 +82,13 @@ class CreateRewindVersion
 
             // Create the RewindVersion record
             $rewindVersion = RewindVersion::create([
-                'model_type'               => get_class($model),
-                'model_id'                 => $model->getKey(),
-                'version'                  => $nextVersion,
+                'model_type' => get_class($model),
+                'model_id' => $model->getKey(),
+                'version' => $nextVersion,
                 config('rewind.user_id_column') => $model->getRewindTrackUser(),
-                'old_values'               => $oldValues ?: null,
-                'new_values'               => $newValues ?: null,
-                'is_snapshot'              => $isSnapshot,
+                'old_values' => $oldValues ?: null,
+                'new_values' => $newValues ?: null,
+                'is_snapshot' => $isSnapshot,
             ]);
 
             // Update the model's current_version
@@ -107,7 +105,8 @@ class CreateRewindVersion
 
         } catch (LockTimeoutException) {
             // If we can't get the lock, just skip this version
-            Log::warning('Laravel Rewind: Could not acquire lock to record version for ' . get_class($model) . ' with ID ' . $model->getKey());
+            Log::warning('Laravel Rewind: Could not acquire lock to record version for '.get_class($model).' with ID '.$model->getKey());
+
             return;
         } finally {
             optional($lock)->release();
