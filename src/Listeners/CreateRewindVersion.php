@@ -29,7 +29,7 @@ class CreateRewindVersion
 
             // Re-check that something is dirty (edge case: might be no changes after all)
             $dirty = $model->getDirty();
-            if (empty($dirty) && ! $model->wasRecentlyCreated && ! $model->wasDeleted()) {
+            if (empty($dirty) && ! $model->wasRecentlyCreated && $model->exists) {
                 return;
             }
 
@@ -57,7 +57,7 @@ class CreateRewindVersion
 
                 if (
                     ($model->wasRecentlyCreated && empty($originalValue))
-                    || $model->wasDeleted()
+                    || ! $model->exists
                     || array_key_exists($attribute, $dirty)
                 ) {
                     $oldValues[$attribute] = $originalValue;
@@ -97,7 +97,9 @@ class CreateRewindVersion
             if ($this->modelHasCurrentVersionColumn($model)) {
                 $model->disableRewindEvents();
 
-                $model->update(['current_version' => $nextVersion]);
+                $model->forceFill([
+                    'current_version' => $nextVersion,
+                ])->save();
 
                 $model->enableRewindEvents();
             }
@@ -139,18 +141,9 @@ class CreateRewindVersion
 
     protected function computeTrackableAttributes($model): array
     {
-        $excluded = [
-            $model->getKeyName(),
-            'created_at',
-            'updated_at',
-            'current_version',
-        ];
-        $additional = $model->excludedFromVersioning();
-        $allExclusions = array_unique(array_merge($additional, $excluded));
-
         return array_keys(Arr::except(
             $model->getAttributes(),
-            $allExclusions
+            $model->getExcludedRewindableAttributes()
         ));
     }
 
