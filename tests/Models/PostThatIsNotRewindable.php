@@ -14,5 +14,3 @@ class PostThatIsNotRewindable extends Model
         'body',
     ];
 }
-
-
