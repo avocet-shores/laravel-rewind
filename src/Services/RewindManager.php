@@ -29,7 +29,12 @@ class RewindManager
 
         $targetVersion = $this->determineCurrentVersion($model) - $steps;
 
-        $this->goTo($model, $targetVersion);
+        try {
+            $this->goTo($model, $targetVersion);
+        } catch (VersionDoesNotExistException) {
+            // If the target version doesn't exist, just go to the lowest version
+            $this->goTo($model, $model->versions->min('version'));
+        }
     }
 
     /**
@@ -43,13 +48,19 @@ class RewindManager
 
         $targetVersion = $this->determineCurrentVersion($model) + $steps;
 
-        $this->goTo($model, $targetVersion);
+        try {
+            $this->goTo($model, $targetVersion);
+        } catch (VersionDoesNotExistException) {
+            // If the target version doesn't exist, just go to the highest version
+            $this->goTo($model, $model->versions->max('version'));
+        }
     }
 
     /**
      * Jump directly to a specified version.
      *
-     * @throws LaravelRewindException
+     * @throws ModelNotRewindableException
+     * @throws VersionDoesNotExistException
      */
     public function goTo($model, int $targetVersion): void
     {

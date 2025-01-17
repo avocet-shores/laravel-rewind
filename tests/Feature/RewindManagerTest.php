@@ -383,7 +383,7 @@ it('is able to fast-forward to a snapshot', function () {
     $this->assertSame('Updated Body Again', $post->body);
 });
 
-it('throws an exception when we try to rewind before version 1', function () {
+it('moves to the lowest available version when we try to rewind before version 1', function () {
     // Arrange
     $post = Post::create([
         'user_id' => $this->user->id,
@@ -398,9 +398,12 @@ it('throws an exception when we try to rewind before version 1', function () {
 
     // Act: Rewind the last version
     Rewind::rewind($post);
-})->throws(VersionDoesNotExistException::class);
 
-it('throws an exception when we try to fast-forward past the latest version', function () {
+    // Assert: The model should be at the lowest version
+    $this->assertSame(1, $post->current_version);
+});
+
+it('moves the model to the highest available version when trying to fast-forward past the latest version', function () {
     // Arrange
     $post = Post::create([
         'user_id' => $this->user->id,
@@ -408,14 +411,15 @@ it('throws an exception when we try to fast-forward past the latest version', fu
         'body' => 'Original Body',
     ]);
 
-    $post->refresh();
-
     // Assert the model has current_version set to 1
     $this->assertSame(1, $post->current_version);
 
     // Act: Fast-forward the last version
     Rewind::fastForward($post);
-})->throws(VersionDoesNotExistException::class);
+
+    // Assert: The model should be at the latest version
+    $this->assertSame(1, $post->current_version);
+});
 
 it('throws an exception when the model is not rewindable', function () {
     // Arrange
