@@ -32,6 +32,16 @@ trait Rewindable
         return [];
     }
 
+    public function getExcludedRewindableAttributes(): array
+    {
+        return array_merge([
+            $this->getKeyName(),
+            'created_at',
+            'updated_at',
+            'current_version',
+        ], $this->excludedFromVersioning());
+    }
+
     /**
      * Boot the trait. Registers relevant event listeners.
      */
@@ -58,7 +68,7 @@ trait Rewindable
             return;
         }
 
-        event(new RewindVersionCreating($this->fresh()));
+        event(new RewindVersionCreating($this));
     }
 
     /**
