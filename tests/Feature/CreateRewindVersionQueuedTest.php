@@ -32,7 +32,7 @@ test('it triggers the synchronous listener if listener_should_queue = false', fu
     ]);
 });
 
-test('it triggers the queued listener if async_listener = true', function () {
+test('it triggers the queued listener if listener_should_queue = true', function () {
     // Fake the config
     Config::set('rewind.listener_should_queue', true);
 
