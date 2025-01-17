@@ -4,6 +4,7 @@ namespace AvocetShores\LaravelRewind\Services;
 
 use AvocetShores\LaravelRewind\Enums\ApproachMethod;
 use AvocetShores\LaravelRewind\Exceptions\LaravelRewindException;
+use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Traits\Rewindable;
@@ -208,12 +209,12 @@ class RewindManager
     /**
      * Ensure the model uses the Rewindable trait.
      *
-     * @throws LaravelRewindException
+     * @throws ModelNotRewindableException
      */
     protected function assertRewindable($model): void
     {
         if (collect(class_uses_recursive($model::class))->doesntContain(Rewindable::class)) {
-            throw new LaravelRewindException('Model must use the Rewindable trait to be rewound.');
+            throw new ModelNotRewindableException('Model must use the Rewindable trait to be rewound.');
         }
     }
 

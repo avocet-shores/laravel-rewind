@@ -1,8 +1,10 @@
 <?php
 
+use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
 use AvocetShores\LaravelRewind\Facades\Rewind;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
+use AvocetShores\LaravelRewind\Tests\Models\PostThatIsNotRewindable;
 use AvocetShores\LaravelRewind\Tests\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -414,3 +416,20 @@ it('throws an exception when we try to fast-forward past the latest version', fu
     // Act: Fast-forward the last version
     Rewind::fastForward($post);
 })->throws(VersionDoesNotExistException::class);
+
+it('throws an exception when the model is not rewindable', function () {
+    // Arrange
+    $post = PostThatIsNotRewindable::create([
+        'user_id' => $this->user->id,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+
+    $post->update([
+        'title' => 'Updated Title',
+        'body' => 'Updated Body',
+    ]);
+
+    // Act: Rewind the last version
+    Rewind::rewind($post);
+})->throws(ModelNotRewindableException::class);
