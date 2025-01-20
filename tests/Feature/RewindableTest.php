@@ -159,3 +159,43 @@ it('does not record a version if disableRewindEvents is set to true before savin
     // Assert: No new version was created
     $this->assertSame(1, RewindVersion::count());
 });
+
+it('creates a v1 snapshot of the model when no versions exist', function () {
+    // Arrange
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'First Title',
+        'body' => 'First Body',
+    ]);
+
+    // Act: Delete the version
+    $post->versions()->delete();
+
+    // Assert: No versions exist
+    $this->assertSame(0, $post->versions()->count());
+
+    // Act: Create a new version
+    $post->initVersion();
+
+    // Assert: Now we should have a single version
+    $this->assertSame(1, $post->versions()->count());
+    $this->assertSame(1, $post->versions()->first()->version);
+    $this->assertTrue($post->versions()->first()->is_snapshot);
+    $this->assertSame('First Title', $post->versions()->first()->new_values['title']);
+    $this->assertSame('First Body', $post->versions()->first()->new_values['body']);
+});
+
+it('does not create a v1 snapshot if versions already exist', function () {
+    // Arrange
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'First Title',
+        'body' => 'First Body',
+    ]);
+
+    // Act: Create a new version
+    $post->initVersion();
+
+    // Assert: We should still have only 1 version
+    $this->assertSame(1, $post->versions()->count());
+});

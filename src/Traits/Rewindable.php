@@ -4,6 +4,7 @@ namespace AvocetShores\LaravelRewind\Traits;
 
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -67,6 +68,34 @@ trait Rewindable
         }
 
         event(new RewindVersionCreating($this));
+    }
+
+    /**
+     * Create a v1 snapshot of the model's current state if no versions exist.
+     *
+     * @throws LockTimeoutException
+     */
+    public function initVersion(): void
+    {
+        cache()->lock(
+            sprintf('laravel-rewind-version-lock-%s-%s', $this->getTable(), $this->getKey()),
+            10
+        )->block(5, function () {
+
+            // If versions already exist, skip
+            if ($this->versions()->exists()) {
+                return;
+            }
+
+            $this->versions()->create([
+                'model_id' => $this->getKey(),
+                'model_type' => static::class,
+                'old_values' => [],
+                'new_values' => $this->getAttributes(),
+                'version' => 1,
+                'is_snapshot' => true,
+            ]);
+        });
     }
 
     /**
