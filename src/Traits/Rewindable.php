@@ -98,21 +98,6 @@ trait Rewindable
         });
     }
 
-    protected function dispatchRewindEvent(): void
-    {
-        // If the model signals it does not want Rewindable events, skip
-        if (! empty($this->disableRewindEvents)) {
-            return;
-        }
-
-        // If there's no change, don't fire the event
-        if (empty($this->getDirty()) && ! $this->wasRecentlyCreated && $this->exists) {
-            return;
-        }
-
-        event(new RewindVersionCreating($this));
-    }
-
     /**
      * A hasMany relationship to the version records.
      */
