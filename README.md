@@ -39,7 +39,7 @@ full snapshots is determined by the `rewind.snapshot_interval` config value. Thi
 between storage cost and performance. Rewind's engine will automatically determine the shortest path between your current 
 version, available snapshots, and your target.
 
-### How does Rewind handle history, and what about branching?
+### How does Rewind handle history?
 
 Rewind maintains a simple linear history of your model’s changes, but what exactly happens when you update a model 
 while on an older version? Let's take a look:
@@ -88,6 +88,11 @@ current state and designates it as the new head. So the current version in our a
 
 In other words, your model's history will always look like it updated from the previous head version. This way, you can always see 
 what changed between versions, even if you jump back and forth in time. And you can always revert to a previous version without fear of losing data.
+
+### Thread Safety
+
+Rewind is designed with thread-safety in mind. Before creating a new version, Rewind must acquire a cache lock for that specific record. This ensures that only one 
+process can create a new version at a time. If a process is unable to acquire the lock, it will wait for a set period of time before throwing an exception.
 
 ## Installation
 
@@ -185,12 +190,20 @@ $attributes = Rewind::getVersionAttributes($post, 7);
 ```
 
 
-### Cloning a Model at a specific version
+### Clone a Model at a specific version
 
 You can clone a model by using the `cloneModel` function. This will create a new model and fill it with the attributes from the specified version.
 
 ```php
 $clonedPost = Rewind::cloneModel($post, 5);
+```
+
+### Initialize a v1 on your model without making any changes
+
+If you have an existing model and want to add a v1 record without making any changes, you can call the `initVersion` function directly from your Rewindable model.
+
+```php
+$post->initVersion();
 ```
 
 ## Testing
