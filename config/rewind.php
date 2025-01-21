@@ -93,4 +93,16 @@ return [
     */
 
     'listener_should_queue' => env('LARAVEL_REWIND_LISTENER_SHOULD_QUEUE', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Concurrency Settings
+    |--------------------------------------------------------------------------
+    |
+    | Define how long to wait (in seconds) for lock acquisition before timing out,
+    | and how long the lock should remain valid if the process unexpectedly ends.
+    */
+
+    'lock_wait' => env('REWIND_LOCK_WAIT', 10),
+    'lock_timeout' => env('REWIND_LOCK_TIMEOUT', 10),
 ];

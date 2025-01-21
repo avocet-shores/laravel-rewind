@@ -19,11 +19,11 @@ class CreateRewindVersion
 
         $lock = cache()->lock(
             sprintf('laravel-rewind-version-lock-%s-%s', $model->getTable(), $model->getKey()),
-            10
+            config('rewind.lock_timeout', 10)
         );
 
         try {
-            $lock->block(10);
+            $lock->block(config('rewind.lock_wait', 10));
 
             // Re-check that something is dirty (edge case: might be no changes after all)
             $dirty = $model->getDirty();
