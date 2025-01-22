@@ -105,7 +105,7 @@ composer require avocet-shores/laravel-rewind
 You can publish and run the migrations, and publish the config, with:
 
 ```bash
-sail artisan vendor:publish --provider="AvocetShores\LaravelRewind\LaravelRewindServiceProvider"
+php artisan vendor:publish --provider="AvocetShores\LaravelRewind\LaravelRewindServiceProvider"
 
 php artisan migrate
 ```
