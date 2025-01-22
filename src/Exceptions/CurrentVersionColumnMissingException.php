@@ -2,7 +2,7 @@
 
 namespace AvocetShores\LaravelRewind\Exceptions;
 
-class CurrentVersionColumnMissingException
+class CurrentVersionColumnMissingException extends LaravelRewindException
 {
 
 }
