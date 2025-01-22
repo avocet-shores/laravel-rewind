@@ -1,11 +1,13 @@
 <?php
 
+use AvocetShores\LaravelRewind\Exceptions\CurrentVersionColumnMissingException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
 use AvocetShores\LaravelRewind\Facades\Rewind;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
 use AvocetShores\LaravelRewind\Tests\Models\PostThatIsNotRewindable;
 use AvocetShores\LaravelRewind\Tests\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -437,3 +439,25 @@ it('throws an exception when the model is not rewindable', function () {
     // Act: Rewind the last version
     Rewind::rewind($post);
 })->throws(ModelNotRewindableException::class);
+
+it('throws an exception when the table does not have a current_version column', function () {
+    // Arrange
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+
+    $post->update([
+        'title' => 'Updated Title',
+        'body' => 'Updated Body',
+    ]);
+
+    // Remove the current_version column
+    Schema::table('posts', function (Blueprint $table) {
+        $table->dropColumn('current_version');
+    });
+
+    // Act: Rewind the last version
+    Rewind::rewind($post);
+})->throws(CurrentVersionColumnMissingException::class);

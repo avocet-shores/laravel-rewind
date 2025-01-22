@@ -3,6 +3,7 @@
 namespace AvocetShores\LaravelRewind\Services;
 
 use AvocetShores\LaravelRewind\Enums\ApproachMethod;
+use AvocetShores\LaravelRewind\Exceptions\CurrentVersionColumnMissingException;
 use AvocetShores\LaravelRewind\Exceptions\LaravelRewindException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
@@ -221,11 +222,16 @@ class RewindManager
      * Ensure the model uses the Rewindable trait.
      *
      * @throws ModelNotRewindableException
+     * @throws CurrentVersionColumnMissingException
      */
     protected function assertRewindable($model): void
     {
         if (collect(class_uses_recursive($model::class))->doesntContain(Rewindable::class)) {
-            throw new ModelNotRewindableException('Model must use the Rewindable trait to be rewound.');
+            throw new ModelNotRewindableException(sprintf( '%s must use the Rewindable trait in order to access Rewind functionality.', $model::class));
+        }
+
+        if (! $this->modelHasCurrentVersionColumn($model)) {
+            throw new CurrentVersionColumnMissingException($model);
         }
     }
 
@@ -239,7 +245,21 @@ class RewindManager
      */
     protected function modelHasCurrentVersionColumn($model): bool
     {
-        return Schema::connection($model->getConnectionName())
+        // First, check the cache to avoid unnecessary queries
+        $cacheKey = 'rewind_current_version_column_'.$model->getTable();
+        if (cache()->has($cacheKey)) {
+            // We only store true values in the cache, so just return true if the key exists.
+            return true;
+        }
+
+        $result = Schema::connection($model->getConnectionName())
             ->hasColumn($model->getTable(), 'current_version');
+
+        // If true, cache the result for a month We don't expect this to change.
+        if ($result) {
+            cache([$cacheKey => true], now()->addMonth());
+        }
+
+        return $result;
     }
 }
