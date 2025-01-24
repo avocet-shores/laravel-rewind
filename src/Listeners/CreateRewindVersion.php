@@ -80,7 +80,6 @@ class CreateRewindVersion
                 $newValues = Arr::only($allAttributes, $attributesToTrack);
             }
 
-            /** @var Model $model */
             // Create the RewindVersion record
             $rewindVersion = RewindVersion::create([
                 'model_type' => $model->getMorphClass(),
