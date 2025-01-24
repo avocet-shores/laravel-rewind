@@ -109,6 +109,7 @@ class CreateRewindVersion
         } catch (LockTimeoutException) {
             // If we cannot acquire a lock, something is most likely wrong with the environment
             $this->handleLockTimeoutException($model);
+
             return;
         } finally {
             optional($lock)->release();
