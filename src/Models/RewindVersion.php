@@ -4,6 +4,7 @@ namespace AvocetShores\LaravelRewind\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 /**
  * @property array $old_values
@@ -63,5 +64,13 @@ class RewindVersion extends Model
             config('rewind.user_model'),
             config('rewind.user_id_column')
         );
+    }
+
+    /**
+     * Get the model that this version belongs to.
+     */
+    public function model(): MorphTo
+    {
+        return $this->morphTo();
     }
 }
