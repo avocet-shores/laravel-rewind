@@ -23,7 +23,7 @@ class CreateRewindVersion
         );
 
         try {
-            $lock->block(config('rewind.lock_wait', 10));
+            $lock->block(config('rewind.lock_wait', 20));
 
             // Re-check that something is dirty (edge case: might be no changes after all)
             $dirty = $model->getDirty();

@@ -62,6 +62,7 @@ class RewindManager
      *
      * @throws ModelNotRewindableException
      * @throws VersionDoesNotExistException
+     * @throws CurrentVersionColumnMissingException
      */
     public function goTo($model, int $targetVersion): void
     {

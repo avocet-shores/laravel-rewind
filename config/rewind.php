@@ -103,6 +103,6 @@ return [
     | and how long the lock should remain valid if the process unexpectedly ends.
     */
 
-    'lock_wait' => env('REWIND_LOCK_WAIT', 10),
+    'lock_wait' => env('REWIND_LOCK_WAIT', 20),
     'lock_timeout' => env('REWIND_LOCK_TIMEOUT', 10),
 ];
