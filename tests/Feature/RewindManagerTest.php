@@ -461,3 +461,31 @@ it('throws an exception when the table does not have a current_version column', 
     // Act: Rewind the last version
     Rewind::rewind($post);
 })->throws(CurrentVersionColumnMissingException::class);
+
+const CURRENT_VERSION_CACHE_KEY = 'rewind:tables:%s:has_current_version';
+
+it('caches when a table has the current_version column', function () {
+
+    // Mock the cache
+    $mock = Cache::spy();
+
+    $mock->shouldReceive('lock')->andReturnSelf();
+    $mock->shouldReceive('has')->once()->andReturn(false);
+    $mock->shouldReceive('has')->andReturn(true);
+    $mock->shouldReceive('put')->once();
+
+    // Arrange
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+
+    $post->update([
+        'title' => 'Updated Title',
+        'body' => 'Updated Body',
+    ]);
+
+    // Act: Rewind the last version
+    Rewind::rewind($post);
+});
