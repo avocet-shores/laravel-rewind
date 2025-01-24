@@ -18,15 +18,14 @@ it('Logs error when unable to acquire a lock', function () {
     $logSpy->shouldReceive('error')
         ->once();
 
-    $lock = $this->mock(PhpRedisLock::class, function ($mock) {
-        $mock->shouldReceive('block')
-            ->with(anyArgs())
-            ->once()
-            ->andThrow(LockTimeoutException::class);
+    $lock = \Mockery::mock(PhpRedisLock::class);
+    $lock->shouldReceive('block')
+        ->once()
+        ->with(anyArgs()) // if you need argument matching, you can put it here
+        ->andThrow(LockTimeoutException::class);
 
-        $mock->shouldReceive('release')
-            ->once();
-    });
+    $lock->shouldReceive('release')
+        ->once();
 
     // Mock the cache lock to throw an exception
     $cacheSpy = \Illuminate\Support\Facades\Cache::spy();
