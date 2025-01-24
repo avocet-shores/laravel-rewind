@@ -228,7 +228,7 @@ class RewindManager
     protected function assertRewindable($model): void
     {
         if (collect(class_uses_recursive($model::class))->doesntContain(Rewindable::class)) {
-            throw new ModelNotRewindableException(sprintf( '%s must use the Rewindable trait in order to access Rewind functionality.', $model::class));
+            throw new ModelNotRewindableException(sprintf('%s must use the Rewindable trait in order to access Rewind functionality.', $model::class));
         }
 
         if (! $this->modelHasCurrentVersionColumn($model)) {
