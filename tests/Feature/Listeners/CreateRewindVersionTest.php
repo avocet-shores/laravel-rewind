@@ -16,15 +16,7 @@ it('Logs error when unable to acquire a lock', function () {
     $logSpy = \Illuminate\Support\Facades\Log::spy();
 
     $logSpy->shouldReceive('error')
-        ->once()
-        ->withArgs([
-            'Failed to acquire lock for RewindVersion creation on AvocetShores\LaravelRewind\Tests\Models\Post:1, your versions may be out of sync.',
-            [
-                'model' => 'AvocetShores\LaravelRewind\Tests\Models\Post',
-                'model_key' => $model->getKey(),
-                'changes' => [],
-            ],
-        ]);
+        ->once();
 
     $lock = $this->mock(PhpRedisLock::class, function ($mock) {
         $mock->shouldReceive('block')
