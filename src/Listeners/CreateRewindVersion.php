@@ -6,6 +6,7 @@ use AvocetShores\LaravelRewind\Events\RewindVersionCreated;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 
@@ -106,13 +107,26 @@ class CreateRewindVersion
             event(new RewindVersionCreated($model, $rewindVersion));
 
         } catch (LockTimeoutException) {
-            // If we can't get the lock, just skip this version
-            Log::warning('Laravel Rewind: Could not acquire lock to record version for '.get_class($model).' with ID '.$model->getKey());
-
+            // If we cannot acquire a lock, something is most likely wrong with the environment
+            $this->handleLockTimeoutException($model);
             return;
         } finally {
             optional($lock)->release();
         }
+    }
+
+    protected function handleLockTimeoutException($model): void
+    {
+        // Just log for now, but need to consider remediation options for this edge case.
+        Log::error(sprintf(
+            'Failed to acquire lock for RewindVersion creation on %s:%s, your versions may be out of sync.',
+            get_class($model),
+            $model->getKey(),
+        ), [
+            'model' => get_class($model),
+            'model_key' => $model->getKey(),
+            'changes' => $model->getDirty(),
+        ]);
     }
 
     protected function rebuildHeadVersion($model): array
