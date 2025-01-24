@@ -6,6 +6,7 @@ use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -89,7 +90,7 @@ trait Rewindable
 
             $this->versions()->create([
                 'model_id' => $this->getKey(),
-                'model_type' => static::class,
+                'model_type' => $this->getMorphClass(),
                 'old_values' => [],
                 'new_values' => $this->getAttributes(),
                 'version' => 1,
@@ -101,10 +102,9 @@ trait Rewindable
     /**
      * A hasMany relationship to the version records.
      */
-    public function versions(): HasMany
+    public function versions(): MorphMany
     {
-        return $this->hasMany(RewindVersion::class, 'model_id')
-            ->where('model_type', static::class);
+        return $this->morphMany(RewindVersion::class, 'model');
     }
 
     /**

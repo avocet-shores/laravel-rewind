@@ -267,9 +267,18 @@ it('can handle complex version history and goTo calls', function () {
     ]);
 
     $finalVersion = $post->versions()->orderBy('version', 'desc')->first();
+
+    $model = $finalVersion->model()->first();
+
+    // Ensure the morph relationship is working
+    $this->assertSame($post->id, $model->id);
+
     $this->assertSame(8, $post->current_version);
     $this->assertSame('Updated Title One Last Time', $post->title);
     $this->assertSame('Updated Body', $post->body);
+
+    // Check the versions() relationship
+    $this->assertCount(8, $post->versions()->get());
 });
 
 it('can clone a model with a given versions data', function () {

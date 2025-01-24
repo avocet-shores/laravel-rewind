@@ -83,7 +83,7 @@ class CreateRewindVersion
 
             // Create the RewindVersion record
             $rewindVersion = RewindVersion::create([
-                'model_type' => get_class($model),
+                'model_type' => $model->getMorphClass(),
                 'model_id' => $model->getKey(),
                 'version' => $nextVersion,
                 config('rewind.user_id_column') => $model->getRewindTrackUser(),
