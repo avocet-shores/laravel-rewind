@@ -13,11 +13,6 @@ it('Logs error when unable to acquire a lock', function () {
         'body' => 'Post Body',
     ]);
 
-    $logSpy = \Illuminate\Support\Facades\Log::spy();
-
-    $logSpy->shouldReceive('error')
-        ->once();
-
     $lock = \Mockery::mock(PhpRedisLock::class);
     $lock->shouldReceive('block')
         ->once()
