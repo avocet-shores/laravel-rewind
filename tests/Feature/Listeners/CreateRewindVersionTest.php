@@ -21,7 +21,6 @@ it('Logs error when unable to acquire a lock', function () {
     $lock = \Mockery::mock(PhpRedisLock::class);
     $lock->shouldReceive('block')
         ->once()
-        ->with(anyArgs()) // if you need argument matching, you can put it here
         ->andThrow(LockTimeoutException::class);
 
     $lock->shouldReceive('release')
