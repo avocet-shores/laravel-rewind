@@ -112,7 +112,7 @@ class CreateRewindVersion
 
             return;
         } finally {
-            optional($lock)->release();
+            $lock?->release();
         }
     }
 
