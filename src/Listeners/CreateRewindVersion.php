@@ -80,9 +80,10 @@ class CreateRewindVersion
                 $newValues = Arr::only($allAttributes, $attributesToTrack);
             }
 
+            /** @var Model $model*/
             // Create the RewindVersion record
             $rewindVersion = RewindVersion::create([
-                'model_type' => get_class($model),
+                'model_type' => $model->getMorphClass(),
                 'model_id' => $model->getKey(),
                 'version' => $nextVersion,
                 config('rewind.user_id_column') => $model->getRewindTrackUser(),
