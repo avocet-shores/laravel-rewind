@@ -11,6 +11,7 @@ use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Traits\Rewindable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 class RewindManager
@@ -196,8 +197,9 @@ class RewindManager
 
         $model->disableRewindEvents();
 
-        $model->current_version = $version;
-        $model->save();
+        $model->forceFill([
+            'current_version' => $version,
+        ])->save();
 
         $model->enableRewindEvents();
     }
@@ -247,8 +249,8 @@ class RewindManager
     protected function modelHasCurrentVersionColumn($model): bool
     {
         // First, check the cache to avoid unnecessary queries
-        $cacheKey = 'rewind_current_version_column_'.$model->getTable();
-        if (cache()->has($cacheKey)) {
+        $cacheKey = sprintf('rewind:tables:%s:has_current_version', $model->getTable());
+        if (Cache::has($cacheKey)) {
             // We only store true values in the cache, so just return true if the key exists.
             return true;
         }
@@ -258,7 +260,7 @@ class RewindManager
 
         // If true, cache the result for a month We don't expect this to change.
         if ($result) {
-            cache([$cacheKey => true], now()->addMonth());
+            Cache::put($cacheKey, true, now()->addMonth());
         }
 
         return $result;
