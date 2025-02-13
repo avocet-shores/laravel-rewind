@@ -7,6 +7,7 @@ use AvocetShores\LaravelRewind\Models\RewindVersion;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -51,9 +52,28 @@ trait Rewindable
             $model->dispatchRewindEvent();
         });
 
-        static::deleted(function ($model) {
-            $model->dispatchRewindEvent();
+        static::deleting(function ($model) {
+            // Only dispatch a rewind event if the model is not force deleting
+            if ($model->hasSoftDeletes() && ! $model->isForceDeleting()) {
+
+                // Ensure `deleted_at` shows up as dirty
+                $model->forceFill([$model->getDeletedAtColumn() => $model->freshTimestampString()]);
+
+                $model->dispatchRewindEvent();
+            }
         });
+
+        static::deleted(function ($model) {
+            // If the model is force deleting or does not use soft deletes, delete all versions
+            if (! $model->hasSoftDeletes() || $model->isForceDeleting()) {
+                $model->versions()->delete();
+            }
+        });
+    }
+
+    public function hasSoftDeletes(): bool
+    {
+        return in_array(SoftDeletes::class, class_uses_recursive($this));
     }
 
     protected function dispatchRewindEvent(): void
