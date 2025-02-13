@@ -117,7 +117,7 @@ To enable version tracking on a model, follow these two steps:
 ### 1. Add the Rewindable trait to your Eloquent model:
 
 ```php
-use AvocetShores\LaravelRewind\Concerns\Rewindable;
+use AvocetShores\LaravelRewind\Traits\Rewindable;
 
 class Post extends Model
 {
