@@ -93,7 +93,6 @@ class CreateRewindVersion
                 'is_snapshot' => $isSnapshot,
             ]);
 
-            /** @var Model $model */
             // Update the model's current_version
             if ($this->modelHasCurrentVersionColumn($model)) {
                 $model->disableRewindEvents();
