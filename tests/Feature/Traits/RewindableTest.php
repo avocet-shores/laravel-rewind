@@ -3,6 +3,7 @@
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
 use AvocetShores\LaravelRewind\Tests\Models\PostWithExcludedAttributes;
+use AvocetShores\LaravelRewind\Tests\Models\Template;
 use AvocetShores\LaravelRewind\Tests\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -45,7 +46,6 @@ it('creates a version when a model is created', function () {
             'title' => null,
             'body' => null,
         ]);
-    // Or empty array depending on your logic
 });
 
 it('creates a version when a model is updated', function () {
@@ -136,8 +136,11 @@ it('creates a version when a model is deleted (if we want to track deletions)', 
     // Act: Delete the model
     $post->delete();
 
-    // Assert: Now we should have 2 versions in total, one for create, one for delete
-    $this->assertSame(2, RewindVersion::count());
+    // Assert: Now we should have 0 versions, because the model does not implement soft deletes
+    $this->assertSame(0, RewindVersion::count());
+
+    // Ensure the model is actually deleted
+    $this->assertDatabaseMissing('posts', ['id' => $post->id]);
 });
 
 it('does not record a version if disableRewindEvents is set to true before saving', function () {
@@ -158,6 +161,52 @@ it('does not record a version if disableRewindEvents is set to true before savin
 
     // Assert: No new version was created
     $this->assertSame(1, RewindVersion::count());
+});
+
+it('stores a version when soft deleting a model', function () {
+    // Arrange
+    $template = Template::create([
+        'name' => 'Template 1',
+        'content' => 'Test Content',
+    ]);
+
+    // Act: Soft delete the model
+    $template->delete();
+
+    // Assert: We should have 2 versions: one for creation and one for deletion
+    $this->assertSame(2, $template->versions()->count());
+
+    // deleted_at should be null in old_values and set in new_values
+    $latestVersion = $template->versions()->where('version', 2)->first();
+    expect($latestVersion->old_values)->toMatchArray([
+        'deleted_at' => null,
+    ])
+        ->and($latestVersion->new_values)->toMatchArray([
+            $template->getDeletedAtColumn() => $template->deleted_at->toDateTimeString(),
+        ]);
+
+    // Act: Restore the model
+    $oldDeletedAt = $template->deleted_at;
+    $template->restore();
+
+    // Assert: We should have 3 versions: one for creation, one for deletion, and one for restoration
+    $this->assertSame(3, $template->versions()->count());
+
+    // deleted_at should be set in old_values and null in new_values
+    $latestVersion = $template->versions()->where('version', 3)->first();
+    expect($latestVersion->old_values)->toMatchArray([
+        $template->getDeletedAtColumn() => $oldDeletedAt->toDateTimeString(),
+    ])
+        ->and($latestVersion->new_values)->toMatchArray([
+            'deleted_at' => null,
+        ]);
+
+    // Force delete the model
+    $template->forceDelete();
+
+    // Assert: We should now have 0 versions and the model should be deleted
+    $this->assertSame(0, $template->versions()->count());
+    $this->assertDatabaseMissing('templates', ['id' => $template->id]);
 });
 
 it('creates a v1 snapshot of the model when no versions exist', function () {

@@ -76,5 +76,14 @@ class TestCase extends Orchestra
             $table->unsignedBigInteger('current_version')->nullable();
             $table->timestamps();
         });
+
+        // Create a test table that implements soft deletes
+        Schema::create('templates', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('content');
+            $table->softDeletes();
+            $table->timestamps();
+        });
     }
 }
