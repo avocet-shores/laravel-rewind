@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Template extends Model
 {
-    use SoftDeletes;
     use Rewindable;
+    use SoftDeletes;
 
     protected $fillable = [
         'name',
