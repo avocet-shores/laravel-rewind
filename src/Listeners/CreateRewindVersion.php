@@ -5,6 +5,7 @@ namespace AvocetShores\LaravelRewind\Listeners;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreated;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
+use DateTimeInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -59,8 +60,8 @@ class CreateRewindVersion
                     || ! $model->exists
                     || array_key_exists($attribute, $dirty)
                 ) {
-                    $oldValues[$attribute] = $originalValue;
-                    $newValues[$attribute] = $model->getAttribute($attribute);
+                    $oldValues[$attribute] = $this->handleDateAttribute($originalValue);
+                    $newValues[$attribute] = $this->handleDateAttribute($model->getAttribute($attribute));
                 }
             }
 
@@ -92,6 +93,7 @@ class CreateRewindVersion
                 'is_snapshot' => $isSnapshot,
             ]);
 
+            /** @var Model $model */
             // Update the model's current_version
             if ($this->modelHasCurrentVersionColumn($model)) {
                 $model->disableRewindEvents();
@@ -155,10 +157,24 @@ class CreateRewindVersion
 
     protected function computeTrackableAttributes($model): array
     {
-        return array_keys(Arr::except(
+        $attributes = array_keys(Arr::except(
             $model->getAttributes(),
             $model->getExcludedRewindableAttributes()
         ));
+
+        // Ensure we track soft deletes
+        if ($model->hasSoftDeletes()) {
+            $attributes[] = $model->getDeletedAtColumn();
+        }
+
+        return array_unique($attributes);
+    }
+
+    protected function handleDateAttribute($value): mixed
+    {
+        return $value instanceof DateTimeInterface
+            ? $value->format('Y-m-d H:i:s')
+            : $value;
     }
 
     protected function modelHasCurrentVersionColumn($model): bool
