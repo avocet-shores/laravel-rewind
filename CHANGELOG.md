@@ -2,6 +2,18 @@
 
 All notable changes to `laravel-rewind` will be documented in this file.
 
+## v0.7.2 - 2025-02-28
+
+### What's Changed
+
+* Append version 12.0 to the package ‘illuminate/contracts’. by @fdjkgh580 in https://github.com/avocet-shores/laravel-rewind/pull/23
+
+### New Contributors
+
+* @fdjkgh580 made their first contribution in https://github.com/avocet-shores/laravel-rewind/pull/23
+
+**Full Changelog**: https://github.com/avocet-shores/laravel-rewind/compare/v0.7.1...v0.7.2
+
 ## v0.7.1 - 2025-02-13
 
 ### What's Changed
