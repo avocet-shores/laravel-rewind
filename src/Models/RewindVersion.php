@@ -7,9 +7,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 /**
+ * @property int $id
+ * @property string $model_type
+ * @property int $model_id
  * @property array $old_values
  * @property array $new_values
  * @property int $version
+ * @property bool $is_snapshot
+ * @property int|null $user_id
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
  */
 class RewindVersion extends Model
 {
