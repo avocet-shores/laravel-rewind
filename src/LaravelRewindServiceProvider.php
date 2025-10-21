@@ -22,6 +22,18 @@ class LaravelRewindServiceProvider extends PackageServiceProvider
             ->hasCommand(AddVersionTrackingColumnCommand::class);
     }
 
+    public function boot(): void
+    {
+        parent::boot();
+
+        // Publish the UUID upgrade migration separately for existing users only
+        if ($this->app->runningInConsole()) {
+            $this->publishes([
+                __DIR__.'/../database/migrations/upgrade_rewind_versions_for_uuid_support.php.stub' => database_path('migrations/'.date('Y_m_d_His', time()).'_upgrade_rewind_versions_for_uuid_support.php'),
+            ], 'laravel-rewind-uuid-upgrade');
+        }
+    }
+
     public function registeringPackage(): void
     {
         $this->app->bind('laravel-rewind-manager', RewindManager::class);

@@ -17,12 +17,11 @@ All notable changes to `laravel-rewind` will be documented in this file.
 
 ### Upgrade Instructions
 
-For existing installations, run this migration to upgrade your database:
+**For existing installations only** (not needed for fresh installs):
 
 ```bash
-# Copy the upgrade migration stub
-cp vendor/avocet-shores/laravel-rewind/database/migrations/upgrade_rewind_versions_for_uuid_support.php.stub \
-  database/migrations/$(date +%Y_%m_%d_%H%M%S)_upgrade_rewind_versions_for_uuid_support.php
+# Publish the UUID upgrade migration
+php artisan vendor:publish --tag=laravel-rewind-uuid-upgrade
 
 # Run migrations
 php artisan migrate

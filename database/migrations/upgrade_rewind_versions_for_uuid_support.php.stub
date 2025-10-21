@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Schema;
  * ONLY needed for existing installations upgrading from previous versions.
  * New installations already have the correct schema.
  *
+ * To publish: php artisan vendor:publish --tag=laravel-rewind-uuid-upgrade
  * See CHANGELOG.md for details.
  */
 return new class extends Migration
