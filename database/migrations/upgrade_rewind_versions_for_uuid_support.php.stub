@@ -1,0 +1,47 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+/**
+ * Upgrade migration for existing laravel-rewind installations.
+ *
+ * This migration converts the model_id column from unsignedBigInteger to string(36)
+ * to support UUID and ULID primary keys while maintaining backward compatibility
+ * with integer IDs.
+ *
+ * IMPORTANT: Run this migration only if you are upgrading from a version that used
+ * unsignedBigInteger for model_id. New installations do not need this migration.
+ *
+ * Usage:
+ * 1. Copy this file to your application's database/migrations directory
+ * 2. Rename it with the current timestamp prefix (e.g., 2024_01_15_000000_upgrade_rewind_versions_for_uuid_support.php)
+ * 3. Run: php artisan migrate
+ */
+return new class extends Migration
+{
+    public function up(): void
+    {
+        $tableName = config('rewind.table_name', 'rewind_versions');
+        $connection = config('rewind.database_connection');
+
+        Schema::connection($connection)->table($tableName, function (Blueprint $table) {
+            // Convert model_id from unsignedBigInteger to string(36)
+            // Existing integer IDs will be automatically cast to strings (e.g., 1 -> "1")
+            $table->string('model_id', 36)->change();
+        });
+    }
+
+    public function down(): void
+    {
+        $tableName = config('rewind.table_name', 'rewind_versions');
+        $connection = config('rewind.database_connection');
+
+        Schema::connection($connection)->table($tableName, function (Blueprint $table) {
+            // WARNING: This rollback will fail if you have UUID or ULID values in model_id
+            // It should only be used if you haven't yet started using UUID/ULID models
+            $table->unsignedBigInteger('model_id')->change();
+        });
+    }
+};
