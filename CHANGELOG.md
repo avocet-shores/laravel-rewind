@@ -2,6 +2,32 @@
 
 All notable changes to `laravel-rewind` will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+* **Version Pruning System**: Comprehensive pruning functionality to manage version retention and prevent unbounded database growth
+  - New `rewind:prune` artisan command with flexible options
+  - Configurable retention policies based on age (days) or count (versions per model)
+  - Smart preservation of critical snapshots needed for efficient reconstruction
+  - Optional preservation of version 1 (initial state) for historical integrity
+  - Per-model filtering support via `--model` option
+  - Dry-run mode for safe preview before deletion
+  - Detailed statistics and breakdown by model type
+  - Chunked deletion for memory-efficient processing of large datasets
+* New `PruneService` for encapsulated pruning logic
+* New `PruneResult` DTO for structured pruning statistics
+* Comprehensive test coverage for pruning functionality
+
+### Configuration
+
+Added new `pruning` configuration section with the following options:
+- `retention_days`: Keep versions created within the last X days
+- `retention_count`: Keep only the last X versions per model
+- `keep_snapshots`: Preserve critical snapshots (default: true)
+- `keep_version_one`: Always preserve version 1 (default: true)
+- `chunk_size`: Process deletions in chunks (default: 1000)
+
 ## v0.7.3 - 2025-10-21
 
 ### What's Changed

@@ -105,4 +105,46 @@ return [
 
     'lock_wait' => env('REWIND_LOCK_WAIT', 20),
     'lock_timeout' => env('REWIND_LOCK_TIMEOUT', 10),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pruning Settings
+    |--------------------------------------------------------------------------
+    |
+    | Configure automatic pruning of old version records. You can set retention
+    | policies based on age (days) or count (number of versions per model).
+    | Both policies can be used together - the most permissive wins.
+    |
+    */
+
+    'pruning' => [
+        /*
+        | Retention by age: Keep only versions created within the last X days.
+        | Set to null to disable age-based retention.
+        */
+        'retention_days' => env('REWIND_RETENTION_DAYS', null),
+
+        /*
+        | Retention by count: Keep only the last X versions per model.
+        | Set to null to disable count-based retention.
+        */
+        'retention_count' => env('REWIND_RETENTION_COUNT', null),
+
+        /*
+        | Always preserve snapshots needed for efficient reconstruction.
+        | When true, critical snapshots will be kept even if they exceed retention limits.
+        */
+        'keep_snapshots' => env('REWIND_KEEP_SNAPSHOTS', true),
+
+        /*
+        | Always preserve version 1 (initial state) for each model.
+        | Recommended to keep this true for historical integrity.
+        */
+        'keep_version_one' => env('REWIND_KEEP_VERSION_ONE', true),
+
+        /*
+        | Process deletions in chunks to avoid memory issues with large datasets.
+        */
+        'chunk_size' => env('REWIND_PRUNE_CHUNK_SIZE', 1000),
+    ],
 ];
