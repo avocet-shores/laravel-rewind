@@ -2,6 +2,34 @@
 
 All notable changes to `laravel-rewind` will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Support for UUID and ULID primary keys (#17)
+- Comprehensive test suite for UUID/ULID models
+- Upgrade migration stub for existing installations
+
+### Changed
+
+- **BREAKING**: `model_id` column changed from `unsignedBigInteger` to `string(36)` to support UUID/ULID primary keys
+- Existing users must run the upgrade migration (see upgrade instructions below)
+
+### Upgrade Instructions
+
+For existing installations, run this migration to upgrade your database:
+
+```bash
+# Copy the upgrade migration stub
+cp vendor/avocet-shores/laravel-rewind/database/migrations/upgrade_rewind_versions_for_uuid_support.php.stub \
+  database/migrations/$(date +%Y_%m_%d_%H%M%S)_upgrade_rewind_versions_for_uuid_support.php
+
+# Run migrations
+php artisan migrate
+```
+
+**Note**: This change is fully backward compatible - integer IDs will continue to work as they are stored as strings.
+
 ## v0.7.2 - 2025-02-28
 
 ### What's Changed
