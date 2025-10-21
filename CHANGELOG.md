@@ -30,6 +30,22 @@ php artisan migrate
 
 **Note**: This change is fully backward compatible - integer IDs will continue to work as they are stored as strings.
 
+## v0.7.3 - 2025-10-21
+
+### What's Changed
+
+* Bump dependabot/fetch-metadata from 2.3.0 to 2.4.0 by @dependabot[bot] in https://github.com/avocet-shores/laravel-rewind/pull/27
+* Bump aglipanci/laravel-pint-action from 2.5 to 2.6 by @dependabot[bot] in https://github.com/avocet-shores/laravel-rewind/pull/29
+* Update PHP version requirement to include 8.4 by @danielrona in https://github.com/avocet-shores/laravel-rewind/pull/31
+* Fix excluded attributes not working with SoftDeletes models by @jared-cannon in https://github.com/avocet-shores/laravel-rewind/pull/33
+* Bump version to 0.7.3 by @jared-cannon in https://github.com/avocet-shores/laravel-rewind/pull/34
+
+### New Contributors
+
+* @danielrona made their first contribution in https://github.com/avocet-shores/laravel-rewind/pull/31
+
+**Full Changelog**: https://github.com/avocet-shores/laravel-rewind/compare/v0.7.2...v0.7.3
+
 ## v0.7.2 - 2025-02-28
 
 ### What's Changed
