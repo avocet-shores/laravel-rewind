@@ -2,6 +2,7 @@
 
 use AvocetShores\LaravelRewind\Services\PruneService;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
+use AvocetShores\LaravelRewind\Tests\Models\Template;
 use AvocetShores\LaravelRewind\Tests\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -235,9 +236,12 @@ it('filters by specific model type', function () {
     $post->versions()->update(['created_at' => now()->subDays(35)]);
     $post2->versions()->update(['created_at' => now()->subDays(35)]);
 
-    // Create a User version
-    $this->user->update(['name' => 'Jane Doe']);
-    $this->user->versions()->update(['created_at' => now()->subDays(35)]);
+    // Create a Template version
+    $template = Template::create([
+        'name' => 'Test Template',
+        'content' => 'Test Content',
+    ]);
+    $template->versions()->update(['created_at' => now()->subDays(35)]);
 
     config(['rewind.pruning.keep_version_one' => false]);
 
@@ -247,10 +251,10 @@ it('filters by specific model type', function () {
         'model' => Post::class,
     ]);
 
-    // Should delete only Post versions, not User versions
+    // Should delete only Post versions, not Template versions
     expect($result->deletedByModel)->toHaveKey(Post::class)
-        ->and($result->deletedByModel)->not->toHaveKey(User::class)
-        ->and($this->user->versions()->count())->toBe(1); // User version still exists
+        ->and($result->deletedByModel)->not->toHaveKey(Template::class)
+        ->and($template->versions()->count())->toBe(1); // Template version still exists
 });
 
 it('handles models with no versions gracefully', function () {

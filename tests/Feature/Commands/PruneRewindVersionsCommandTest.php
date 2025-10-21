@@ -1,6 +1,7 @@
 <?php
 
 use AvocetShores\LaravelRewind\Tests\Models\Post;
+use AvocetShores\LaravelRewind\Tests\Models\Template;
 use AvocetShores\LaravelRewind\Tests\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -110,9 +111,12 @@ it('filters by specific model type', function () {
     // Make post version old
     $post->versions()->update(['created_at' => now()->subDays(35)]);
 
-    // Update user to create a version
-    $this->user->update(['name' => 'Jane Doe']);
-    $this->user->versions()->update(['created_at' => now()->subDays(35)]);
+    // Create template version
+    $template = Template::create([
+        'name' => 'Test Template',
+        'content' => 'Test Content',
+    ]);
+    $template->versions()->update(['created_at' => now()->subDays(35)]);
 
     config(['rewind.pruning.keep_version_one' => false]);
 
@@ -120,9 +124,9 @@ it('filters by specific model type', function () {
         ->expectsOutputToContain('Target model: '.Post::class)
         ->assertExitCode(0);
 
-    // Post version should be deleted, User version should remain
+    // Post version should be deleted, Template version should remain
     expect($post->fresh()->versions()->count())->toBe(0)
-        ->and($this->user->fresh()->versions()->count())->toBe(1);
+        ->and($template->fresh()->versions()->count())->toBe(1);
 });
 
 it('displays retention policies correctly', function () {

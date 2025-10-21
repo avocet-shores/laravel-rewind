@@ -115,38 +115,51 @@ class PruneService
 
     /**
      * Determine which versions to delete for a specific model instance.
+     *
+     * When both policies are set, only delete versions that violate BOTH policies
+     * (intersection), making it the most permissive approach (keeps more).
      */
     protected function getVersionsToDeleteForModel(
         Collection $versions,
         ?int $retentionDays,
         ?int $retentionCount
     ): Collection {
-        $candidates = collect();
-
         // Sort versions by version number
         $sortedVersions = $versions->sortBy('version');
 
-        // Apply age-based retention
-        if ($retentionDays !== null) {
+        $candidates = collect();
+
+        // If both policies are set, only delete if BOTH agree (intersection = most permissive)
+        if ($retentionDays !== null && $retentionCount !== null) {
+            // Get versions that violate age policy
             $cutoffDate = now()->subDays($retentionDays);
-            $candidates = $candidates->merge(
-                $sortedVersions->filter(fn ($v) => $v->created_at->lt($cutoffDate))
-            );
+            $oldVersions = $sortedVersions->filter(fn ($v) => $v->created_at->lt($cutoffDate));
+
+            // Get versions that violate count policy
+            if ($sortedVersions->count() > $retentionCount) {
+                $versionsToKeepByCount = $sortedVersions->sortByDesc('version')->take($retentionCount);
+                $versionNumbersToKeep = $versionsToKeepByCount->pluck('version')->toArray();
+                $beyondCount = $sortedVersions->filter(fn ($v) => ! in_array($v->version, $versionNumbersToKeep));
+
+                // Only delete versions that violate BOTH policies (intersection)
+                $oldVersionIds = $oldVersions->pluck('id')->toArray();
+                $beyondCountIds = $beyondCount->pluck('id')->toArray();
+                $intersectionIds = array_intersect($oldVersionIds, $beyondCountIds);
+                $candidates = $sortedVersions->whereIn('id', $intersectionIds);
+            }
+            // If count policy doesn't trigger, no candidates for deletion
+        } elseif ($retentionDays !== null) {
+            // Only age policy: delete old versions
+            $cutoffDate = now()->subDays($retentionDays);
+            $candidates = $sortedVersions->filter(fn ($v) => $v->created_at->lt($cutoffDate));
+        } elseif ($retentionCount !== null) {
+            // Only count policy: delete versions beyond count
+            if ($sortedVersions->count() > $retentionCount) {
+                $versionsToKeepByCount = $sortedVersions->sortByDesc('version')->take($retentionCount);
+                $versionNumbersToKeep = $versionsToKeepByCount->pluck('version')->toArray();
+                $candidates = $sortedVersions->filter(fn ($v) => ! in_array($v->version, $versionNumbersToKeep));
+            }
         }
-
-        // Apply count-based retention
-        if ($retentionCount !== null && $sortedVersions->count() > $retentionCount) {
-            // Get versions beyond the retention count (oldest ones)
-            $versionsToKeepByCount = $sortedVersions->sortByDesc('version')->take($retentionCount);
-            $versionNumbersToKeep = $versionsToKeepByCount->pluck('version')->toArray();
-
-            $candidates = $candidates->merge(
-                $sortedVersions->filter(fn ($v) => ! in_array($v->version, $versionNumbersToKeep))
-            );
-        }
-
-        // Remove duplicates (a version might match both age and count criteria)
-        $candidates = $candidates->unique('id');
 
         // Apply safety filters to preserve critical versions
         return $this->preserveCriticalVersions($candidates, $sortedVersions);
@@ -154,6 +167,8 @@ class PruneService
 
     /**
      * Filter out versions that should never be deleted for data integrity.
+     *
+     * Returns only the versions that are safe to delete (filters out critical ones).
      */
     protected function preserveCriticalVersions(Collection $candidates, Collection $allVersionsForModel): Collection
     {
@@ -161,28 +176,16 @@ class PruneService
         $keepSnapshots = config('rewind.pruning.keep_snapshots', true);
         $snapshotInterval = config('rewind.snapshot_interval', 10);
 
-        return $candidates->filter(function ($version) use ($keepVersionOne, $keepSnapshots, $snapshotInterval, $allVersionsForModel) {
+        return $candidates->filter(function ($version) use ($keepVersionOne, $keepSnapshots, $snapshotInterval) {
             // Never delete version 1 if configured
             if ($keepVersionOne && $version->version === 1) {
                 return false;
             }
 
-            // Preserve snapshots if configured
+            // Preserve snapshots that fall on interval boundaries if configured
+            // These act as checkpoints for efficient version reconstruction
             if ($keepSnapshots && $version->is_snapshot) {
-                // Keep snapshots that fall on the snapshot interval boundary
                 if ($version->version % $snapshotInterval === 0) {
-                    return false;
-                }
-
-                // Keep the last snapshot before the newest version
-                $maxVersion = $allVersionsForModel->max('version');
-                $lastSnapshotBeforeMax = $allVersionsForModel
-                    ->where('is_snapshot', true)
-                    ->where('version', '<', $maxVersion)
-                    ->sortByDesc('version')
-                    ->first();
-
-                if ($lastSnapshotBeforeMax && $lastSnapshotBeforeMax->id === $version->id) {
                     return false;
                 }
             }

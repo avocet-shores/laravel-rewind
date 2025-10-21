@@ -108,42 +108,42 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Pruning Settings
+    | Version Pruning
     |--------------------------------------------------------------------------
     |
-    | Configure automatic pruning of old version records. You can set retention
-    | policies based on age (days) or count (number of versions per model).
-    | Both policies can be used together - the most permissive wins.
+    | Configure retention policies for version records. Set limits based on
+    | age, count, or both. When both policies are set, versions are only
+    | deleted if they violate both policies (most permissive retention).
     |
     */
 
     'pruning' => [
         /*
-        | Retention by age: Keep only versions created within the last X days.
+        | Retention by age: Keep versions created within the last X days.
         | Set to null to disable age-based retention.
         */
         'retention_days' => env('REWIND_RETENTION_DAYS', null),
 
         /*
-        | Retention by count: Keep only the last X versions per model.
+        | Retention by count: Keep the last X versions per model instance.
         | Set to null to disable count-based retention.
         */
         'retention_count' => env('REWIND_RETENTION_COUNT', null),
 
         /*
-        | Always preserve snapshots needed for efficient reconstruction.
-        | When true, critical snapshots will be kept even if they exceed retention limits.
+        | Preserve snapshots that fall on the configured snapshot interval.
+        | Snapshots are needed for efficient version reconstruction.
         */
         'keep_snapshots' => env('REWIND_KEEP_SNAPSHOTS', true),
 
         /*
-        | Always preserve version 1 (initial state) for each model.
-        | Recommended to keep this true for historical integrity.
+        | Always preserve version 1 (initial state) for each model instance.
+        | Recommended for maintaining complete history.
         */
         'keep_version_one' => env('REWIND_KEEP_VERSION_ONE', true),
 
         /*
-        | Process deletions in chunks to avoid memory issues with large datasets.
+        | Process deletions in chunks to prevent memory exhaustion.
         */
         'chunk_size' => env('REWIND_PRUNE_CHUNK_SIZE', 1000),
     ],
