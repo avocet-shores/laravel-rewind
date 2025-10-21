@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::connection(config('rewind.database_connection'))->create(config('rewind.table_name'), function (Blueprint $table) {
             $table->id();
             $table->string('model_type');
-            $table->unsignedBigInteger('model_id');
+            $table->string('model_id', 36);
             $table->text('old_values')->nullable();
             $table->text('new_values')->nullable();
             $table->unsignedBigInteger('version');

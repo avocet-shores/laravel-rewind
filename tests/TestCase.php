@@ -85,5 +85,25 @@ class TestCase extends Orchestra
             $table->softDeletes();
             $table->timestamps();
         });
+
+        // Create a test table with UUID primary key
+        Schema::create('products', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->decimal('price', 10, 2)->nullable();
+            $table->unsignedBigInteger('current_version')->nullable();
+            $table->timestamps();
+        });
+
+        // Create a test table with ULID primary key
+        Schema::create('articles', function (Blueprint $table) {
+            $table->ulid('id')->primary();
+            $table->string('title');
+            $table->text('content')->nullable();
+            $table->string('author')->nullable();
+            $table->unsignedBigInteger('current_version')->nullable();
+            $table->timestamps();
+        });
     }
 }
