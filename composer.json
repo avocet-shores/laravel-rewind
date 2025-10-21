@@ -1,7 +1,7 @@
 {
     "name": "avocet-shores/laravel-rewind",
     "description": "Laravel Rewind is a powerful, easy-to-use versioning package for your Eloquent models.",
-    "version": "0.7.2",
+    "version": "0.7.3",
     "keywords": [
         "Avocet Shores",
         "laravel",
