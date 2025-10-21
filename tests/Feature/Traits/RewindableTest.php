@@ -78,6 +78,99 @@ it('creates a version when a model is updated', function () {
         ]);
 });
 
+it('creates a version when a fresh model instance is updated (regression test for getDirty bug)', function () {
+    // This test specifically validates the fix for the getDirty() vs getChanges() bug
+    // reported in the GitHub issue where getDirty() was empty in the saved event.
+    //
+    // The bug occurred when:
+    // 1. A model is fetched fresh from the database
+    // 2. Attributes are changed
+    // 3. save() is called
+    // 4. In the saved event, getDirty() is empty because syncOriginal() has been called
+    //
+    // The fix uses getChanges() which still contains the changed attributes after save().
+
+    // Arrange: Create a post
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+    $postId = $post->id;
+
+    // Clear the created version timestamp to ensure we can distinguish new versions
+    RewindVersion::query()->update(['created_at' => now()->subMinute()]);
+
+    // Assert: One version exists from creation
+    $this->assertSame(1, RewindVersion::count());
+
+    // Act: Fetch a fresh instance from the database and update it
+    // This is the exact scenario from the bug report
+    $freshPost = Post::find($postId);
+    $freshPost->title = 'Updated Title';
+    $freshPost->body = 'Updated Body';
+    $freshPost->save();
+
+    // Assert: A second version should be created for the update
+    // Before the fix, this would fail because getDirty() was empty in the saved event
+    $this->assertSame(2, RewindVersion::count(), 'Expected 2 versions (create + update) but got '.RewindVersion::count());
+
+    // Verify the version captured the changes correctly
+    $latestVersion = RewindVersion::orderBy('id', 'desc')->first();
+
+    expect($latestVersion->version)->toBe(2)
+        ->and($latestVersion->old_values)->toMatchArray([
+            'title' => 'Original Title',
+            'body' => 'Original Body',
+        ])
+        ->and($latestVersion->new_values)->toMatchArray([
+            'title' => 'Updated Title',
+            'body' => 'Updated Body',
+        ]);
+});
+
+it('creates a version when using the update method (regression test for getDirty bug)', function () {
+    // This test validates that the update() method also works correctly with the fix.
+    // The update() method internally calls fill() + save(), which should trigger the same logic.
+
+    // Arrange: Create a post
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+    $postId = $post->id;
+
+    // Clear the created version timestamp
+    RewindVersion::query()->update(['created_at' => now()->subMinute()]);
+
+    // Assert: One version exists from creation
+    $this->assertSame(1, RewindVersion::count());
+
+    // Act: Fetch a fresh instance and use update() method
+    $freshPost = Post::find($postId);
+    $freshPost->update([
+        'title' => 'Updated Title',
+        'body' => 'Updated Body',
+    ]);
+
+    // Assert: A second version should be created
+    $this->assertSame(2, RewindVersion::count(), 'Expected 2 versions (create + update) but got '.RewindVersion::count());
+
+    // Verify the version captured the changes correctly
+    $latestVersion = RewindVersion::orderBy('id', 'desc')->first();
+
+    expect($latestVersion->version)->toBe(2)
+        ->and($latestVersion->old_values)->toMatchArray([
+            'title' => 'Original Title',
+            'body' => 'Original Body',
+        ])
+        ->and($latestVersion->new_values)->toMatchArray([
+            'title' => 'Updated Title',
+            'body' => 'Updated Body',
+        ]);
+});
+
 it('does not create a new version if nothing changes on save', function () {
     // Arrange
     $post = $this->user->posts()->create([

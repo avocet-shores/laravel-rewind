@@ -27,8 +27,9 @@ class CreateRewindVersion
         try {
             $lock->block(config('rewind.lock_wait', 20));
 
-            // Re-check that something is dirty (edge case: might be no changes after all)
-            $dirty = $model->getDirty();
+            // Re-check that something changed (edge case: might be no changes after all)
+            // Use getChanges() for updates (getDirty is empty) and fall back to getDirty() for creates
+            $dirty = $model->getChanges() ?: $model->getDirty();
             if (empty($dirty) && ! $model->wasRecentlyCreated && $model->exists) {
                 return;
             }
@@ -127,7 +128,7 @@ class CreateRewindVersion
         ), [
             'model' => get_class($model),
             'model_key' => $model->getKey(),
-            'changes' => $model->getDirty(),
+            'changes' => $model->getChanges() ?: $model->getDirty(),
         ]);
     }
 

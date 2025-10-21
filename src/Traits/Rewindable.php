@@ -83,15 +83,20 @@ trait Rewindable
             return;
         }
 
+        // Get the changed attributes. In the saved event:
+        // - For creates: getDirty() may have values before syncOriginal() is called
+        // - For updates: getChanges() has the values (getDirty is empty because syncChanges was called)
+        $changedAttributes = $this->getChanges() ?: $this->getDirty();
+
         // If there's no change, don't fire the event
-        if (empty($this->getDirty()) && ! $this->wasRecentlyCreated && $this->exists) {
+        if (empty($changedAttributes) && ! $this->wasRecentlyCreated && $this->exists) {
             return;
         }
 
-        // Filter out excluded attributes from dirty attributes to see if there are any trackable changes
+        // Filter out excluded attributes from changed attributes to see if there are any trackable changes
         if ($this->exists && ! $this->wasRecentlyCreated) {
             $trackableChanges = array_diff_key(
-                $this->getDirty(),
+                $changedAttributes,
                 array_flip($this->getExcludedRewindableAttributes())
             );
 
