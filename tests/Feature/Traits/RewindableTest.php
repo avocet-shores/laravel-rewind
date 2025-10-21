@@ -252,8 +252,10 @@ it('does not create a v1 snapshot if versions already exist', function () {
 it('does not create a version when only excluded attributes change on a soft delete model', function () {
     // This test reproduces the bug where excluded attributes don't work with SoftDeletes models
     // Create a Template model with excluded attributes
-    $template = new class extends Template
+    $templateClass = new class extends Template
     {
+        protected $table = 'templates';
+
         public static function excludedFromVersioning(): array
         {
             return ['content'];
@@ -261,7 +263,7 @@ it('does not create a version when only excluded attributes change on a soft del
     };
 
     // Create the model
-    $instance = $template->create([
+    $instance = $templateClass->create([
         'name' => 'Test Template',
         'content' => 'Initial Content',
     ]);
@@ -270,7 +272,7 @@ it('does not create a version when only excluded attributes change on a soft del
     $this->assertSame(1, $instance->versions()->count());
 
     // Act: Update only the excluded attribute
-    $instance = $template->find($instance->id);
+    $instance = $templateClass->find($instance->id);
     $instance->content = 'Updated Content';
     $instance->save();
 
@@ -280,8 +282,10 @@ it('does not create a version when only excluded attributes change on a soft del
 
 it('creates a version when both excluded and non-excluded attributes change on a soft delete model', function () {
     // Test that versions are still created when non-excluded attributes change
-    $template = new class extends Template
+    $templateClass = new class extends Template
     {
+        protected $table = 'templates';
+
         public static function excludedFromVersioning(): array
         {
             return ['content'];
@@ -289,7 +293,7 @@ it('creates a version when both excluded and non-excluded attributes change on a
     };
 
     // Create the model
-    $instance = $template->create([
+    $instance = $templateClass->create([
         'name' => 'Test Template',
         'content' => 'Initial Content',
     ]);
@@ -298,7 +302,7 @@ it('creates a version when both excluded and non-excluded attributes change on a
     $this->assertSame(1, $instance->versions()->count());
 
     // Act: Update both excluded and non-excluded attributes
-    $instance = $template->find($instance->id);
+    $instance = $templateClass->find($instance->id);
     $instance->name = 'Updated Template';
     $instance->content = 'Updated Content';
     $instance->save();
