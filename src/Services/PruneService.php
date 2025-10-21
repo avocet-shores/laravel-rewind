@@ -168,30 +168,60 @@ class PruneService
     /**
      * Filter out versions that should never be deleted for data integrity.
      *
+     * When keep_snapshots is true, this maintains the snapshot system's ability
+     * to reconstruct history efficiently by keeping all versions from the oldest
+     * relevant snapshot forward.
+     *
      * Returns only the versions that are safe to delete (filters out critical ones).
      */
     protected function preserveCriticalVersions(Collection $candidates, Collection $allVersionsForModel): Collection
     {
         $keepVersionOne = config('rewind.pruning.keep_version_one', true);
         $keepSnapshots = config('rewind.pruning.keep_snapshots', true);
-        $snapshotInterval = config('rewind.snapshot_interval', 10);
 
-        return $candidates->filter(function ($version) use ($keepVersionOne, $keepSnapshots, $snapshotInterval) {
-            // Never delete version 1 if configured
-            if ($keepVersionOne && $version->version === 1) {
-                return false;
-            }
+        // Start by removing version 1 if configured to keep it
+        if ($keepVersionOne) {
+            $candidates = $candidates->reject(fn ($v) => $v->version === 1);
+        }
 
-            // Preserve snapshots that fall on interval boundaries if configured
-            // These act as checkpoints for efficient version reconstruction
-            if ($keepSnapshots && $version->is_snapshot) {
-                if ($version->version % $snapshotInterval === 0) {
-                    return false;
-                }
-            }
+        // If not keeping snapshots, we're done
+        if (! $keepSnapshots) {
+            return $candidates;
+        }
 
-            return true;
-        });
+        // Find the oldest version we're keeping (not in deletion candidates)
+        $candidateIds = $candidates->pluck('id')->toArray();
+        $versionsToKeep = $allVersionsForModel->reject(fn ($v) => in_array($v->id, $candidateIds));
+
+        if ($versionsToKeep->isEmpty()) {
+            // We're deleting everything, no snapshot preservation needed
+            return $candidates;
+        }
+
+        $oldestKeptVersion = $versionsToKeep->sortBy('version')->first();
+
+        // Find the nearest snapshot at or before the oldest kept version
+        $anchorSnapshot = $allVersionsForModel
+            ->where('is_snapshot', true)
+            ->where('version', '<=', $oldestKeptVersion->version)
+            ->sortByDesc('version')
+            ->first();
+
+        // If no snapshot found before the oldest kept version, check if version 1 exists
+        // (version 1 is always a snapshot and serves as the ultimate anchor)
+        if (! $anchorSnapshot) {
+            $anchorSnapshot = $allVersionsForModel->where('version', 1)->first();
+        }
+
+        // If we still have no anchor snapshot, we can't maintain reconstruction capability
+        // In this case, just return candidates as-is (rare edge case)
+        if (! $anchorSnapshot) {
+            return $candidates;
+        }
+
+        // Remove all versions >= anchor snapshot from deletion candidates
+        // This ensures we keep the snapshot and all diffs needed for reconstruction
+        return $candidates->filter(fn ($v) => $v->version < $anchorSnapshot->version);
     }
 
     /**

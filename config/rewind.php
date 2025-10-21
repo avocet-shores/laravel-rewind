@@ -131,8 +131,9 @@ return [
         'retention_count' => env('REWIND_RETENTION_COUNT', null),
 
         /*
-        | Preserve snapshots that fall on the configured snapshot interval.
-        | Snapshots are needed for efficient version reconstruction.
+        | Maintain snapshot-based reconstruction capability. When enabled, keeps
+        | the nearest snapshot before your retention range plus all diffs forward,
+        | allowing efficient history traversal. Disable to prune more aggressively.
         */
         'keep_snapshots' => env('REWIND_KEEP_SNAPSHOTS', true),
 

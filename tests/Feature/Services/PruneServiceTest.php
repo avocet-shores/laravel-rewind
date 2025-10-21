@@ -129,9 +129,10 @@ it('prunes versions beyond retention count', function () {
         ->and($post->versions()->count())->toBe(6);
 });
 
-it('preserves critical snapshots when keep_snapshots is true', function () {
+it('preserves snapshots with all diffs for reconstruction when keep_snapshots is true', function () {
     config(['rewind.pruning.keep_snapshots' => true]);
     config(['rewind.snapshot_interval' => 10]);
+    config(['rewind.pruning.keep_version_one' => false]);
 
     $post = Post::create([
         'user_id' => $this->user->id,
@@ -139,7 +140,7 @@ it('preserves critical snapshots when keep_snapshots is true', function () {
         'body' => 'Test Body',
     ]);
 
-    // Create versions up to 20 (version 10 and 20 will be snapshots)
+    // Create versions up to 20 (versions 1, 10, and 20 will be snapshots)
     for ($i = 2; $i <= 20; $i++) {
         $post->update(['title' => "Version {$i}"]);
     }
@@ -147,13 +148,47 @@ it('preserves critical snapshots when keep_snapshots is true', function () {
     // Make all versions old
     $post->versions()->update(['created_at' => now()->subDays(100)]);
 
-    // Prune old versions but keep only 5
-    config(['rewind.pruning.keep_version_one' => false]);
+    // Keep only last 5 versions (16-20)
     $result = $this->pruneService->prune(['keep' => 5]);
 
-    // Snapshots at version 10 and 20 should be preserved
-    expect($post->versions()->where('version', 10)->exists())->toBeTrue()
-        ->and($post->versions()->where('version', 20)->exists())->toBeTrue();
+    // With keep_snapshots=true, should keep snapshot 10 and all versions from 10-20
+    // This maintains reconstruction capability for the kept range
+    // Versions 1-9 can be deleted (orphaning version 1 is okay as it's a complete snapshot)
+    expect($post->versions()->pluck('version')->sort()->values()->toArray())
+        ->toBe([10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
+        ->and($result->totalDeleted)->toBe(9);
+
+    // Verify version 10 is a snapshot (anchor point for reconstruction)
+    expect($post->versions()->where('version', 10)->first()->is_snapshot)->toBeTrue();
+});
+
+it('allows deleting snapshots when keep_snapshots is false', function () {
+    config(['rewind.pruning.keep_snapshots' => false]);
+    config(['rewind.snapshot_interval' => 10]);
+    config(['rewind.pruning.keep_version_one' => false]);
+
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Test Post',
+        'body' => 'Test Body',
+    ]);
+
+    // Create versions up to 20
+    for ($i = 2; $i <= 20; $i++) {
+        $post->update(['title' => "Version {$i}"]);
+    }
+
+    // Make all versions old
+    $post->versions()->update(['created_at' => now()->subDays(100)]);
+
+    // Keep only last 5 versions (16-20)
+    $result = $this->pruneService->prune(['keep' => 5]);
+
+    // With keep_snapshots=false, should only keep exactly 16-20 (5 versions)
+    // Snapshots 10 can be deleted (no reconstruction capability maintained)
+    expect($post->versions()->pluck('version')->sort()->values()->toArray())
+        ->toBe([16, 17, 18, 19, 20])
+        ->and($result->totalDeleted)->toBe(15);
 });
 
 it('applies both retention policies with most permissive winning', function () {
