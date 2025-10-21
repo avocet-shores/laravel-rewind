@@ -88,6 +88,19 @@ trait Rewindable
             return;
         }
 
+        // Filter out excluded attributes from dirty attributes to see if there are any trackable changes
+        if ($this->exists && ! $this->wasRecentlyCreated) {
+            $trackableChanges = array_diff_key(
+                $this->getDirty(),
+                array_flip($this->getExcludedRewindableAttributes())
+            );
+
+            // If only excluded attributes changed, don't fire the event
+            if (empty($trackableChanges)) {
+                return;
+            }
+        }
+
         event(new RewindVersionCreating($this));
     }
 

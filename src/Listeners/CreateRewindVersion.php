@@ -161,9 +161,12 @@ class CreateRewindVersion
             $model->getExcludedRewindableAttributes()
         ));
 
-        // Ensure we track soft deletes
+        // Ensure we track soft deletes (unless explicitly excluded)
         if ($model->hasSoftDeletes()) {
-            $attributes[] = $model->getDeletedAtColumn();
+            $deletedAtColumn = $model->getDeletedAtColumn();
+            if (! in_array($deletedAtColumn, $model->getExcludedRewindableAttributes())) {
+                $attributes[] = $deletedAtColumn;
+            }
         }
 
         return array_unique($attributes);

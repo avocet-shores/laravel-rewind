@@ -248,3 +248,68 @@ it('does not create a v1 snapshot if versions already exist', function () {
     // Assert: We should still have only 1 version
     $this->assertSame(1, $post->versions()->count());
 });
+
+it('does not create a version when only excluded attributes change on a soft delete model', function () {
+    // This test reproduces the bug where excluded attributes don't work with SoftDeletes models
+    // Create a Template model with excluded attributes
+    $template = new class extends Template
+    {
+        public static function excludedFromVersioning(): array
+        {
+            return ['content'];
+        }
+    };
+
+    // Create the model
+    $instance = $template->create([
+        'name' => 'Test Template',
+        'content' => 'Initial Content',
+    ]);
+
+    // Assert: One version should be created
+    $this->assertSame(1, $instance->versions()->count());
+
+    // Act: Update only the excluded attribute
+    $instance = $template->find($instance->id);
+    $instance->content = 'Updated Content';
+    $instance->save();
+
+    // Assert: No new version should be created because only an excluded attribute changed
+    $this->assertSame(1, $instance->versions()->count());
+});
+
+it('creates a version when both excluded and non-excluded attributes change on a soft delete model', function () {
+    // Test that versions are still created when non-excluded attributes change
+    $template = new class extends Template
+    {
+        public static function excludedFromVersioning(): array
+        {
+            return ['content'];
+        }
+    };
+
+    // Create the model
+    $instance = $template->create([
+        'name' => 'Test Template',
+        'content' => 'Initial Content',
+    ]);
+
+    // Assert: One version should be created
+    $this->assertSame(1, $instance->versions()->count());
+
+    // Act: Update both excluded and non-excluded attributes
+    $instance = $template->find($instance->id);
+    $instance->name = 'Updated Template';
+    $instance->content = 'Updated Content';
+    $instance->save();
+
+    // Assert: A new version should be created because a non-excluded attribute changed
+    $this->assertSame(2, $instance->versions()->count());
+
+    // The version should only track the non-excluded attribute
+    $latestVersion = $instance->versions()->where('version', 2)->first();
+    expect($latestVersion->old_values)->toHaveKey('name')
+        ->and($latestVersion->new_values)->toHaveKey('name')
+        ->and($latestVersion->old_values)->not->toHaveKey('content')
+        ->and($latestVersion->new_values)->not->toHaveKey('content');
+});
