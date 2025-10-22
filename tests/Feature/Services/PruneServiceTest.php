@@ -335,6 +335,83 @@ it('processes versions per model instance independently', function () {
         ->and($post2->versions()->count())->toBe(4);
 });
 
+it('never deletes all versions (safety mechanism)', function () {
+    config(['rewind.pruning.keep_version_one' => false]);
+    config(['rewind.pruning.keep_snapshots' => false]);
+
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Test Post',
+        'body' => 'Test Body',
+    ]);
+
+    for ($i = 1; $i <= 5; $i++) {
+        $post->update(['title' => "Version {$i}"]);
+    }
+
+    // Make ALL versions old (would normally delete all)
+    $post->versions()->update(['created_at' => now()->subDays(100)]);
+
+    $result = $this->pruneService->prune(['days' => 30]);
+
+    // Should keep newest version as safety mechanism
+    expect($post->versions()->count())->toBe(1)
+        ->and($post->versions()->first()->version)->toBe(6); // Newest version
+});
+
+it('handles edge case where no snapshots exist except v1', function () {
+    config(['rewind.pruning.keep_snapshots' => true]);
+    config(['rewind.pruning.keep_version_one' => false]);
+    config(['rewind.snapshot_interval' => 100]); // Very high interval, so no snapshots created
+
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Test Post',
+        'body' => 'Test Body',
+    ]);
+
+    for ($i = 1; $i <= 10; $i++) {
+        $post->update(['title' => "Version {$i}"]);
+    }
+
+    // Make older versions old
+    $post->versions()
+        ->where('version', '<=', 5)
+        ->update(['created_at' => now()->subDays(100)]);
+
+    // Keep last 5 versions
+    $result = $this->pruneService->prune(['keep' => 5]);
+
+    // With keep_snapshots=true and only v1 as snapshot, should keep v1 and forward
+    // Can't delete v1 as it's needed to reconstruct versions 7-11
+    expect($post->versions()->min('version'))->toBe(1);
+});
+
+it('intersection policy keeps versions if either policy says to keep', function () {
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Test Post',
+        'body' => 'Test Body',
+    ]);
+
+    for ($i = 1; $i <= 5; $i++) {
+        $post->update(['title' => "Version {$i}"]);
+    }
+
+    // Make all versions very old
+    $post->versions()->update(['created_at' => now()->subDays(100)]);
+
+    // Age policy says delete (all old), but count policy says keep (5 < 10)
+    $result = $this->pruneService->prune([
+        'days' => 30,
+        'keep' => 10,
+    ]);
+
+    // Should delete nothing (count policy protects them)
+    expect($result->totalDeleted)->toBe(0)
+        ->and($post->versions()->count())->toBe(6);
+});
+
 it('returns accurate statistics', function () {
     $post = Post::create([
         'user_id' => $this->user->id,

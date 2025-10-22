@@ -133,7 +133,11 @@ return [
         /*
         | Maintain snapshot-based reconstruction capability. When enabled, keeps
         | the nearest snapshot before your retention range plus all diffs forward,
-        | allowing efficient history traversal. Disable to prune more aggressively.
+        | allowing efficient history traversal.
+        |
+        | When disabled, pruning is more aggressive (keeps only what retention
+        | policies specify), but reconstruction still works from current state.
+        | Trade-off: slower traversal without snapshot optimization.
         */
         'keep_snapshots' => env('REWIND_KEEP_SNAPSHOTS', true),
 

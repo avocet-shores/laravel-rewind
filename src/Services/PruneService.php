@@ -162,7 +162,18 @@ class PruneService
         }
 
         // Apply safety filters to preserve critical versions
-        return $this->preserveCriticalVersions($candidates, $sortedVersions);
+        $candidates = $this->preserveCriticalVersions($candidates, $sortedVersions);
+
+        // CRITICAL: Never delete ALL versions - always preserve at least one
+        // This maintains versioning system integrity even with aggressive policies
+        $versionsToKeepAfterPruning = $sortedVersions->count() - $candidates->count();
+        if ($versionsToKeepAfterPruning === 0 && $sortedVersions->isNotEmpty()) {
+            // Keep the newest version as the last line of defense
+            $newestVersion = $sortedVersions->sortByDesc('version')->first();
+            $candidates = $candidates->reject(fn ($v) => $v->id === $newestVersion->id);
+        }
+
+        return $candidates;
     }
 
     /**
