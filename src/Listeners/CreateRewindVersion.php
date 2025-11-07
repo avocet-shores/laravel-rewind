@@ -100,7 +100,7 @@ class CreateRewindVersion
 
                 $model->forceFill([
                     'current_version' => $nextVersion,
-                ])->save();
+                ])->saveQuietly();
 
                 $model->enableRewindEvents();
             }
