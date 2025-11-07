@@ -2,6 +2,16 @@
 
 All notable changes to `laravel-rewind` will be documented in this file.
 
+## v0.7.4 - 2025-11-07
+
+### What's Changed
+
+* Fix getDirty() vs getChanges() bug in saved event by @jared-cannon in https://github.com/avocet-shores/laravel-rewind/pull/36
+* Fix Rewindable trait firing model observers twice by @jared-cannon in https://github.com/avocet-shores/laravel-rewind/pull/38
+* Bump version to 0.7.4 by @jared-cannon in https://github.com/avocet-shores/laravel-rewind/pull/39
+
+**Full Changelog**: https://github.com/avocet-shores/laravel-rewind/compare/v0.7.3...v0.7.4
+
 ## v0.7.3 - 2025-10-21
 
 ### What's Changed
