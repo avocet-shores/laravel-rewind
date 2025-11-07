@@ -410,3 +410,47 @@ it('creates a version when both excluded and non-excluded attributes change on a
         ->and($latestVersion->old_values)->not->toHaveKey('content')
         ->and($latestVersion->new_values)->not->toHaveKey('content');
 });
+
+it('does not fire model observers twice when updating current_version (regression test for #37)', function () {
+    // This test validates that model observers only fire once during an update,
+    // even though the Rewindable trait updates the current_version field.
+    //
+    // Bug: Before the fix, when a model was updated:
+    // 1. User's update triggers observers
+    // 2. Rewindable trait updates current_version and saves again
+    // 3. Second save triggers all observers again (duplicate)
+    //
+    // Fix: Use saveQuietly() when updating current_version to prevent events from firing
+
+    // Arrange: Create a custom observer class with a static counter
+    $observer = new class
+    {
+        public static int $updateCounter = 0;
+
+        public function updated($post)
+        {
+            self::$updateCounter++;
+        }
+    };
+
+    // Register the observer
+    Post::observe($observer);
+
+    // Create a post
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+
+    // Reset counter after creation (we only care about updates)
+    $observer::$updateCounter = 0;
+
+    // Act: Update the post
+    $post = Post::find($post->id);
+    $post->title = 'Updated Title';
+    $post->save();
+
+    // Assert: The observer should have fired exactly once
+    expect($observer::$updateCounter)->toBe(1, 'Observer fired '.$observer::$updateCounter.' time(s), expected 1');
+});
