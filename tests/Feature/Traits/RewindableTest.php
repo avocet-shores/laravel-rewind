@@ -422,17 +422,14 @@ it('does not fire model observers twice when updating current_version (regressio
     //
     // Fix: Use saveQuietly() when updating current_version to prevent events from firing
 
-    // Arrange: Create a counter to track how many times the observer fires
-    $updateCounter = 0;
-
-    // Create a custom observer class
-    $observer = new class($updateCounter)
+    // Arrange: Create a custom observer class with a static counter
+    $observer = new class
     {
-        public function __construct(public int &$counter) {}
+        public static int $updateCounter = 0;
 
         public function updated($post)
         {
-            $this->counter++;
+            self::$updateCounter++;
         }
     };
 
@@ -447,7 +444,7 @@ it('does not fire model observers twice when updating current_version (regressio
     ]);
 
     // Reset counter after creation (we only care about updates)
-    $updateCounter = 0;
+    $observer::$updateCounter = 0;
 
     // Act: Update the post
     $post = Post::find($post->id);
@@ -455,5 +452,5 @@ it('does not fire model observers twice when updating current_version (regressio
     $post->save();
 
     // Assert: The observer should have fired exactly once
-    expect($updateCounter)->toBe(1, 'Observer fired '.$updateCounter.' time(s), expected 1');
+    expect($observer::$updateCounter)->toBe(1, 'Observer fired '.$observer::$updateCounter.' time(s), expected 1');
 });
