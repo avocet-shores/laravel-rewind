@@ -255,6 +255,57 @@ it('creates a version when listener receives event with pre-captured changes', f
     expect($versionCount)->toBe(2); // v1 from create + v2 from our manual handle
 });
 
+it('survives serialize/unserialize round-trip and still creates a version', function () {
+    // This is the TRUE regression test for the queued listener bug.
+    // SerializesModels replaces the model with just its ID during serialization,
+    // then re-fetches from DB on deserialization. This kills getChanges(),
+    // getDirty(), and wasRecentlyCreated. The fix stores these on the event itself.
+
+    $model = Post::create([
+        'user_id' => 1,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+
+    // Simulate an update (the real trigger for version creation)
+    $model->title = 'Updated Title';
+    $model->saveQuietly();
+
+    // Build the event exactly as dispatchRewindEvent() does — with captured state
+    $event = new RewindVersionCreating(
+        model: $model,
+        changes: $model->getChanges(),
+        wasRecentlyCreated: false,
+    );
+
+    // Verify the event has the right state before serialization
+    expect($event->changes)->toHaveKey('title');
+    expect($event->model->getChanges())->not->toBeEmpty();
+
+    // Serialize and deserialize — this is what the queue does
+    $restored = unserialize(serialize($event));
+
+    // After deserialization, the MODEL's transient state is gone...
+    expect($restored->model->getChanges())->toBeEmpty()
+        ->and($restored->model->getDirty())->toBeEmpty()
+        ->and($restored->model->wasRecentlyCreated)->toBeFalse();
+
+    // ...but the EVENT's captured state survived
+    expect($restored->changes)->toHaveKey('title')
+        ->and($restored->changes['title'])->toBe('Updated Title')
+        ->and($restored->wasRecentlyCreated)->toBeFalse();
+
+    // Now prove the listener actually creates a version from the deserialized event
+    $listener = new CreateRewindVersion;
+    $listener->handle($restored);
+
+    // v1 from the original create + v2 from our listener call
+    expect($model->versions()->count())->toBe(2);
+    $v2 = $model->versions()->where('version', 2)->first();
+    expect($v2)->not->toBeNull();
+    expect($v2->new_values)->toHaveKey('title');
+});
+
 // --- Fix 2: Version creation is wrapped in a DB transaction ---
 
 it('creates version and updates current_version atomically', function () {
