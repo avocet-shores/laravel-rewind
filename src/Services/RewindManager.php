@@ -7,6 +7,7 @@ use AvocetShores\LaravelRewind\Exceptions\LaravelRewindException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
 use AvocetShores\LaravelRewind\Traits\Rewindable;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
@@ -62,23 +63,32 @@ class RewindManager
      * @throws ModelNotRewindableException
      * @throws VersionDoesNotExistException
      * @throws CurrentVersionColumnMissingException
+     * @throws LockTimeoutException
      */
     public function goTo($model, int $targetVersion): void
     {
         $this->assertRewindable($model);
-        $this->eagerLoadVersions($model);
 
-        // Validate the target version
-        $targetModel = $model->versions->where('version', $targetVersion)->first();
-        if (! $targetModel) {
-            throw new VersionDoesNotExistException('The specified version does not exist.');
-        }
-
-        $model->fill(
-            $this->buildAttributesForVersion($model, $targetVersion)
+        $lock = cache()->lock(
+            sprintf('laravel-rewind-version-lock-%s-%s', $model->getTable(), $model->getKey()),
+            config('rewind.lock_timeout', 10)
         );
 
-        $this->updateModelVersionAndSave($model, $targetVersion);
+        $lock->block(config('rewind.lock_wait', 20), function () use ($model, $targetVersion) {
+            $this->eagerLoadVersions($model);
+
+            // Validate the target version
+            $targetModel = $model->versions->where('version', $targetVersion)->first();
+            if (! $targetModel) {
+                throw new VersionDoesNotExistException('The specified version does not exist.');
+            }
+
+            $model->fill(
+                $this->buildAttributesForVersion($model, $targetVersion)
+            );
+
+            $this->updateModelVersionAndSave($model, $targetVersion);
+        });
     }
 
     /**

@@ -13,6 +13,7 @@ use DateTimeInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class CreateRewindVersion
@@ -23,6 +24,12 @@ class CreateRewindVersion
     {
         $model = $event->model;
 
+        // Use changes and wasRecentlyCreated from the event, which were captured at dispatch
+        // time and survive serialization. This is critical for queued listeners where the
+        // model's transient state (getChanges/getDirty/wasRecentlyCreated) is lost.
+        $dirty = $event->changes;
+        $wasRecentlyCreated = $event->wasRecentlyCreated;
+
         $lock = cache()->lock(
             sprintf('laravel-rewind-version-lock-%s-%s', $model->getTable(), $model->getKey()),
             config('rewind.lock_timeout', 10)
@@ -32,14 +39,12 @@ class CreateRewindVersion
             $lock->block(config('rewind.lock_wait', 20));
 
             // Re-check that something changed (edge case: might be no changes after all)
-            // Use getChanges() for updates (getDirty is empty) and fall back to getDirty() for creates
-            $dirty = $model->getChanges() ?: $model->getDirty();
-            if (empty($dirty) && ! $model->wasRecentlyCreated && $model->exists) {
+            if (empty($dirty) && ! $wasRecentlyCreated && $model->exists) {
                 return;
             }
 
             // Determine the new version number
-            $nextVersion = ($model->versions()->max('version') ?? 0) + 1;
+            $nextVersion = ($model->versions()->max('version') ?? 0) + 1; // @phpstan-ignore method.notFound
 
             $oldValues = [];
             $newValues = [];
@@ -61,7 +66,7 @@ class CreateRewindVersion
                     : $model->getOriginal($attribute);
 
                 if (
-                    ($model->wasRecentlyCreated && empty($originalValue))
+                    ($wasRecentlyCreated && empty($originalValue))
                     || ! $model->exists
                     || array_key_exists($attribute, $dirty)
                 ) {
@@ -87,37 +92,53 @@ class CreateRewindVersion
                 $newValues = Arr::only($allAttributes, $attributesToTrack);
             }
 
-            // Create the RewindVersion record
-            $rewindVersion = RewindVersion::create([
-                'model_type' => $model->getMorphClass(),
-                'model_id' => $model->getKey(),
-                'version' => $nextVersion,
-                config('rewind.user_id_column') => $model->getRewindTrackUser(),
-                'old_values' => $oldValues ?: null,
-                'new_values' => $newValues ?: null,
-                'is_snapshot' => $isSnapshot,
-            ]);
+            // Capture values from the model before entering the transaction closure,
+            // so PHPStan can resolve trait methods on the concrete model type.
+            $morphClass = $model->getMorphClass();
+            $modelKey = $model->getKey();
+            $trackUser = $model->getRewindTrackUser(); // @phpstan-ignore method.notFound
+            $hasCurrentVersionColumn = $this->modelHasCurrentVersionColumn($model);
 
-            // Update the model's current_version
-            if ($this->modelHasCurrentVersionColumn($model)) {
-                $model->disableRewindEvents();
+            // Wrap version creation, model update, and auto-prune in a transaction
+            // so that a crash between steps doesn't leave current_version out of sync.
+            $connection = (new RewindVersion)->getConnectionName();
 
-                $model->forceFill([
-                    'current_version' => $nextVersion,
-                ])->saveQuietly();
+            $rewindVersion = DB::connection($connection)->transaction(function () use (
+                $model, $nextVersion, $oldValues, $newValues, $isSnapshot,
+                $morphClass, $modelKey, $trackUser, $hasCurrentVersionColumn
+            ) {
+                // Create the RewindVersion record
+                $rewindVersion = RewindVersion::create([
+                    'model_type' => $morphClass,
+                    'model_id' => $modelKey,
+                    'version' => $nextVersion,
+                    config('rewind.user_id_column') => $trackUser,
+                    'old_values' => $oldValues ?: null,
+                    'new_values' => $newValues ?: null,
+                    'is_snapshot' => $isSnapshot,
+                ]);
 
-                $model->enableRewindEvents();
-            }
+                // Update the model's current_version
+                if ($hasCurrentVersionColumn) {
+                    $model->disableRewindEvents(); // @phpstan-ignore method.notFound
+                    $model->forceFill([
+                        'current_version' => $nextVersion,
+                    ])->saveQuietly();
+                    $model->enableRewindEvents(); // @phpstan-ignore method.notFound
+                }
 
-            // Fire the "RewindVersionCreated" event
+                // Auto-prune if a max versions cap is configured
+                $this->autoPruneIfNeeded($model);
+
+                return $rewindVersion;
+            });
+
+            // Fire the "RewindVersionCreated" event outside the transaction
             event(new RewindVersionCreated($model, $rewindVersion));
-
-            // Auto-prune if a max versions cap is configured
-            $this->autoPruneIfNeeded($model);
 
         } catch (LockTimeoutException $e) {
             // If we cannot acquire a lock, something is most likely wrong with the environment
-            $this->handleLockTimeoutException($model, $e);
+            $this->handleLockTimeoutException($model, $e, $dirty);
 
             return;
         } finally {
@@ -125,9 +146,8 @@ class CreateRewindVersion
         }
     }
 
-    protected function handleLockTimeoutException($model, LockTimeoutException $e): void
+    protected function handleLockTimeoutException($model, LockTimeoutException $e, array $changes = []): void
     {
-        $changes = $model->getChanges() ?: $model->getDirty();
 
         Log::error(sprintf(
             'Failed to acquire lock for RewindVersion creation on %s:%s, your versions may be out of sync.',
