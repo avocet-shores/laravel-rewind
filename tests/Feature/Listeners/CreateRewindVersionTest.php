@@ -19,7 +19,7 @@ function mockLockTimeout(): void
         ->andThrow(LockTimeoutException::class);
 
     $lock->shouldReceive('release')
-        ->once();
+        ->never();
 
     $cacheSpy = Cache::spy();
     $cacheSpy->shouldReceive('lock')

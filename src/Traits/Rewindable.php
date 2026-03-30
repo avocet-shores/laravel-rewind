@@ -118,8 +118,8 @@ trait Rewindable
     {
         cache()->lock(
             sprintf('laravel-rewind-version-lock-%s-%s', $this->getTable(), $this->getKey()),
-            10
-        )->block(5, function () {
+            config('rewind.lock_timeout', 10)
+        )->block(config('rewind.lock_wait', 20), function () {
 
             // If versions already exist, skip
             if ($this->versions()->exists()) {

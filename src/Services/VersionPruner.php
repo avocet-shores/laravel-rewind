@@ -6,6 +6,7 @@ use AvocetShores\LaravelRewind\Dto\PruneResult;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class VersionPruner
@@ -84,69 +85,40 @@ class VersionPruner
         ?Carbon $cutoffDate,
         bool $pretend,
     ): int {
-        // Load only metadata to determine what to prune
-        $versions = RewindVersion::query()
-            ->where('model_type', $modelType)
-            ->where('model_id', $modelId)
-            ->select('id', 'version', 'is_snapshot', 'created_at')
-            ->orderBy('version')
-            ->get();
-
-        if ($versions->isEmpty()) {
-            return 0;
-        }
-
-        $maxVersion = $versions->max('version');
-
-        // Determine the set of version IDs to keep
-        $keepIds = collect();
-
-        // Always keep the latest version
-        $latestVersion = $versions->where('version', $maxVersion)->first();
-        $keepIds->push($latestVersion->id);
-
-        if ($keepCount !== null) {
-            // Keep the last N versions by version number descending
-            $keptByCount = $versions->sortByDesc('version')->take($keepCount);
-            $keepIds = $keepIds->merge($keptByCount->pluck('id'));
-        }
-
-        // Determine prunable versions
-        $prunable = $versions->reject(function ($v) use ($keepIds, $cutoffDate) {
-            // Never prune versions in the keep set
-            if ($keepIds->contains($v->id)) {
-                return true;
-            }
-
-            // If cutoff date is set, only prune versions older than the cutoff
-            if ($cutoffDate !== null) {
-                return Carbon::parse($v->created_at)->isAfter($cutoffDate);
-            }
-
-            return false;
-        });
-
-        if ($prunable->isEmpty()) {
-            return 0;
-        }
-
-        $prunableIds = $prunable->pluck('id')->toArray();
-        $prunableVersionNumbers = $prunable->pluck('version')->toArray();
-
-        // Identify the new oldest remaining version
-        $remainingVersions = $versions->reject(fn ($v) => in_array($v->id, $prunableIds));
-        $newOldest = $remainingVersions->sortBy('version')->first();
-
         if ($pretend) {
-            return count($prunableIds);
+            $versions = $this->loadVersionMetadata($modelType, $modelId);
+
+            if ($versions->isEmpty()) {
+                return 0;
+            }
+
+            return $this->determinePrunable($versions, $keepCount, $cutoffDate)->count();
         }
 
-        // Wrap snapshot conversion + deletion in a transaction
         $connection = (new RewindVersion)->getConnectionName();
 
         return DB::connection($connection)->transaction(function () use (
-            $modelType, $modelId, $newOldest, $prunableIds
+            $modelType, $modelId, $keepCount, $cutoffDate
         ) {
+            // Load metadata INSIDE the transaction with a pessimistic lock
+            $versions = $this->loadVersionMetadata($modelType, $modelId, lockForUpdate: true);
+
+            if ($versions->isEmpty()) {
+                return 0;
+            }
+
+            $prunable = $this->determinePrunable($versions, $keepCount, $cutoffDate);
+
+            if ($prunable->isEmpty()) {
+                return 0;
+            }
+
+            $prunableIds = $prunable->pluck('id')->toArray();
+
+            // Identify the new oldest remaining version
+            $remainingVersions = $versions->reject(fn ($v) => in_array($v->id, $prunableIds));
+            $newOldest = $remainingVersions->sortBy('version')->first();
+
             // If the new oldest version is not a snapshot, convert it
             if ($newOldest && ! $newOldest->is_snapshot) {
                 $this->convertToSnapshot($modelType, $modelId, $newOldest->version);
@@ -162,19 +134,71 @@ class VersionPruner
     }
 
     /**
+     * Load version metadata for a given model instance.
+     */
+    private function loadVersionMetadata(string $modelType, mixed $modelId, bool $lockForUpdate = false): Collection
+    {
+        $query = RewindVersion::query()
+            ->where('model_type', $modelType)
+            ->where('model_id', $modelId)
+            ->select('id', 'version', 'is_snapshot', 'created_at')
+            ->orderBy('version');
+
+        if ($lockForUpdate) {
+            $query->lockForUpdate();
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Determine which versions are prunable from the given collection.
+     */
+    private function determinePrunable(Collection $versions, ?int $keepCount, ?Carbon $cutoffDate): Collection
+    {
+        $maxVersion = $versions->max('version');
+        $keepIds = collect();
+
+        // Always keep the latest version
+        $latestVersion = $versions->where('version', $maxVersion)->first();
+        $keepIds->push($latestVersion->id);
+
+        if ($keepCount !== null) {
+            // Keep the last N versions by version number descending
+            $keptByCount = $versions->sortByDesc('version')->take($keepCount);
+            $keepIds = $keepIds->merge($keptByCount->pluck('id'));
+        }
+
+        return $versions->reject(function ($v) use ($keepIds, $cutoffDate) {
+            // Never prune versions in the keep set
+            if ($keepIds->contains($v->id)) {
+                return true;
+            }
+
+            // If cutoff date is set, only prune versions older than the cutoff
+            if ($cutoffDate !== null) {
+                return Carbon::parse($v->created_at)->isAfter($cutoffDate);
+            }
+
+            return false;
+        });
+    }
+
+    /**
      * Reconstruct the full state at a given version and convert it to a snapshot.
      */
     protected function convertToSnapshot(string $modelType, mixed $modelId, int $targetVersion): void
     {
         $state = $this->stateBuilder->reconstructStateAtVersion($modelType, $modelId, $targetVersion);
 
-        RewindVersion::query()
+        $version = RewindVersion::query()
             ->where('model_type', $modelType)
             ->where('model_id', $modelId)
             ->where('version', $targetVersion)
-            ->update([
-                'new_values' => json_encode($state),
-                'is_snapshot' => true,
-            ]);
+            ->firstOrFail();
+
+        $version->new_values = $state;
+        $version->is_snapshot = true;
+        $version->save();
     }
 }

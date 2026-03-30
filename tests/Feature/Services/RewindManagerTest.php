@@ -9,6 +9,7 @@ use AvocetShores\LaravelRewind\Tests\Models\PostThatIsNotRewindable;
 use AvocetShores\LaravelRewind\Tests\Models\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 
 uses(RefreshDatabase::class);
 
@@ -466,6 +467,9 @@ it('throws an exception when the table does not have a current_version column', 
     Schema::table('posts', function (Blueprint $table) {
         $table->dropColumn('current_version');
     });
+
+    // Clear the cached schema check so SchemaHelper re-evaluates
+    Cache::forget(sprintf('rewind:tables:%s:has_current_version', $post->getTable()));
 
     // Act: Rewind the last version
     Rewind::rewind($post);

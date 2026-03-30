@@ -9,6 +9,7 @@ use AvocetShores\LaravelRewind\Exceptions\LockTimeoutRewindException;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Services\StateBuilder;
 use AvocetShores\LaravelRewind\Services\VersionPruner;
+use AvocetShores\LaravelRewind\Support\SchemaHelper;
 use DateTimeInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
@@ -28,8 +29,11 @@ class CreateRewindVersion
             config('rewind.lock_timeout', 10)
         );
 
+        $lockAcquired = false;
+
         try {
             $lock->block(config('rewind.lock_wait', 20));
+            $lockAcquired = true;
 
             // Re-check that something changed (edge case: might be no changes after all)
             // Use getChanges() for updates (getDirty is empty) and fall back to getDirty() for creates
@@ -99,7 +103,7 @@ class CreateRewindVersion
             ]);
 
             // Update the model's current_version
-            if ($this->modelHasCurrentVersionColumn($model)) {
+            if (SchemaHelper::modelHasCurrentVersionColumn($model)) {
                 $model->disableRewindEvents();
 
                 $model->forceFill([
@@ -121,7 +125,9 @@ class CreateRewindVersion
 
             return;
         } finally {
-            $lock->release();
+            if ($lockAcquired) {
+                $lock->release();
+            }
         }
     }
 
@@ -193,12 +199,6 @@ class CreateRewindVersion
             : $value;
     }
 
-    protected function modelHasCurrentVersionColumn($model): bool
-    {
-        return $model->getConnection()
-            ->getSchemaBuilder()
-            ->hasColumn($model->getTable(), 'current_version');
-    }
 
     protected function isNotHead($model, int $nextVersion): bool
     {

@@ -54,8 +54,11 @@ class RewindVersion extends Model
             $this->setTable(config('rewind.table_name'));
         }
 
-        $this->fillable[] = config('rewind.user_id_column');
-        $this->casts[config('rewind.user_id_column')] = 'integer';
+        $userIdColumn = config('rewind.user_id_column');
+        if ($userIdColumn !== null) {
+            $this->fillable[] = $userIdColumn;
+            $this->casts[$userIdColumn] = config('rewind.user_id_cast', 'integer');
+        }
 
         parent::__construct($attributes);
     }

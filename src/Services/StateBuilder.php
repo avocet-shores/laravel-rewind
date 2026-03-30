@@ -5,6 +5,7 @@ namespace AvocetShores\LaravelRewind\Services;
 use AvocetShores\LaravelRewind\Enums\ApproachMethod;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class StateBuilder
 {
@@ -91,10 +92,12 @@ class StateBuilder
                 $versionRec = $versions->where('version', $ver)->first();
 
                 if (! $versionRec) {
+                    Log::warning("Rewind: version record {$ver} is missing. State reconstruction may be incomplete.");
+
                     continue;
                 }
 
-                $attributes = array_merge($attributes, $versionRec->old_values);
+                $attributes = array_merge($attributes, $versionRec->old_values ?? []);
             }
         } else {
             // Step upward: apply new_values for each diff
@@ -102,10 +105,12 @@ class StateBuilder
                 $versionRec = $versions->where('version', $ver)->first();
 
                 if (! $versionRec) {
+                    Log::warning("Rewind: version record {$ver} is missing. State reconstruction may be incomplete.");
+
                     continue;
                 }
 
-                $attributes = array_merge($attributes, $versionRec->new_values);
+                $attributes = array_merge($attributes, $versionRec->new_values ?? []);
             }
         }
 
