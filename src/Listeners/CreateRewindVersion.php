@@ -9,6 +9,7 @@ use AvocetShores\LaravelRewind\Exceptions\LockTimeoutRewindException;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Services\StateBuilder;
 use AvocetShores\LaravelRewind\Services\VersionPruner;
+use AvocetShores\LaravelRewind\Support\SchemaHelper;
 use DateTimeInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
@@ -35,8 +36,11 @@ class CreateRewindVersion
             config('rewind.lock_timeout', 10)
         );
 
+        $lockAcquired = false;
+
         try {
             $lock->block(config('rewind.lock_wait', 20));
+            $lockAcquired = true;
 
             // Re-check that something changed (edge case: might be no changes after all)
             if (empty($dirty) && ! $wasRecentlyCreated && $model->exists) {
@@ -97,7 +101,7 @@ class CreateRewindVersion
             $morphClass = $model->getMorphClass();
             $modelKey = $model->getKey();
             $trackUser = $model->getRewindTrackUser(); // @phpstan-ignore method.notFound
-            $hasCurrentVersionColumn = $this->modelHasCurrentVersionColumn($model);
+            $hasCurrentVersionColumn = SchemaHelper::modelHasCurrentVersionColumn($model);
 
             // Wrap version creation, model update, and auto-prune in a transaction
             // so that a crash between steps doesn't leave current_version out of sync.
@@ -142,7 +146,9 @@ class CreateRewindVersion
 
             return;
         } finally {
-            $lock->release();
+            if ($lockAcquired) {
+                $lock->release();
+            }
         }
     }
 
@@ -211,13 +217,6 @@ class CreateRewindVersion
         return $value instanceof DateTimeInterface
             ? $value->format('Y-m-d H:i:s')
             : $value;
-    }
-
-    protected function modelHasCurrentVersionColumn($model): bool
-    {
-        return $model->getConnection()
-            ->getSchemaBuilder()
-            ->hasColumn($model->getTable(), 'current_version');
     }
 
     protected function isNotHead($model, int $nextVersion): bool

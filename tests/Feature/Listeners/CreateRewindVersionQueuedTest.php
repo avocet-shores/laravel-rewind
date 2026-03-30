@@ -57,3 +57,23 @@ test('it triggers the queued listener if listener_should_queue = true', function
         'body' => 'This is the body content',
     ]);
 });
+
+test('it reads queue properties from config', function () {
+    $listener = app(CreateRewindVersionQueued::class);
+
+    expect($listener->tries)->toBe(3);
+    expect($listener->backoff)->toBe([2, 10, 30]);
+    expect($listener->timeout)->toBe(60);
+});
+
+test('it respects custom queue config values', function () {
+    config()->set('rewind.queue.tries', 5);
+    config()->set('rewind.queue.backoff', [1, 5]);
+    config()->set('rewind.queue.timeout', 120);
+
+    $listener = new CreateRewindVersionQueued;
+
+    expect($listener->tries)->toBe(5);
+    expect($listener->backoff)->toBe([1, 5]);
+    expect($listener->timeout)->toBe(120);
+});

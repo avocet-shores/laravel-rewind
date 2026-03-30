@@ -31,6 +31,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rewind Versions Table User ID Cast
+    |--------------------------------------------------------------------------
+    |
+    | Here you may define the Eloquent cast type for the user ID column.
+    | By default, it is set to "integer". If your User model uses UUID
+    | or string primary keys, change this to "string".
+    |
+    */
+
+    'user_id_cast' => env('LARAVEL_REWIND_USER_ID_CAST', 'integer'),
+
+    /*
+    |--------------------------------------------------------------------------
     | User Model
     |--------------------------------------------------------------------------
     |
@@ -155,4 +168,21 @@ return [
     */
 
     'on_lock_timeout' => env('LARAVEL_REWIND_ON_LOCK_TIMEOUT', 'log'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Queue Settings
+    |--------------------------------------------------------------------------
+    |
+    | When listener_should_queue is true, these settings control the retry
+    | behavior of the queued version creation listener. Adjust these values
+    | to suit your application's reliability requirements.
+    |
+    */
+
+    'queue' => [
+        'tries' => env('LARAVEL_REWIND_QUEUE_TRIES', 3),
+        'backoff' => [2, 10, 30],
+        'timeout' => env('LARAVEL_REWIND_QUEUE_TIMEOUT', 60),
+    ],
 ];

@@ -16,7 +16,14 @@ return new class extends Migration
             $table->text('new_values')->nullable();
             $table->unsignedBigInteger('version');
             $table->boolean('is_snapshot')->default(false);
-            $table->unsignedBigInteger('user_id')->nullable();
+
+            $userIdColumn = config('rewind.user_id_column', 'user_id');
+            if (config('rewind.user_id_cast', 'integer') === 'integer') {
+                $table->unsignedBigInteger($userIdColumn)->nullable();
+            } else {
+                $table->string($userIdColumn)->nullable();
+            }
+
             $table->timestamps();
 
             $table->index(['model_type', 'model_id', 'version']);

@@ -2,18 +2,18 @@
 
 namespace AvocetShores\LaravelRewind\Services;
 
+use AvocetShores\LaravelRewind\Contracts\RewindManagerInterface;
 use AvocetShores\LaravelRewind\Exceptions\CurrentVersionColumnMissingException;
 use AvocetShores\LaravelRewind\Exceptions\LaravelRewindException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
+use AvocetShores\LaravelRewind\Support\SchemaHelper;
 use AvocetShores\LaravelRewind\Traits\Rewindable;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Schema;
 
-class RewindManager
+class RewindManager implements RewindManagerInterface
 {
     public function __construct(
         protected StateBuilder $stateBuilder,
@@ -24,17 +24,19 @@ class RewindManager
      *
      * @throws LaravelRewindException
      */
-    public function rewind($model, int $steps = 1): void
+    public function rewind(Model $model, int $steps = 1): int
     {
         $this->assertRewindable($model);
 
         $targetVersion = $this->determineCurrentVersion($model) - $steps;
 
         try {
-            $this->goTo($model, $targetVersion);
+            return $this->goTo($model, $targetVersion);
         } catch (VersionDoesNotExistException) {
-            // If the target version doesn't exist, just go to the lowest version
-            $this->goTo($model, $model->versions->min('version'));
+            // If the target version doesn't exist, clamp to the lowest version
+            $minVersion = $model->versions->min('version'); // @phpstan-ignore property.notFound
+
+            return $this->goTo($model, $minVersion);
         }
     }
 
@@ -43,17 +45,19 @@ class RewindManager
      *
      * @throws LaravelRewindException
      */
-    public function fastForward($model, int $steps = 1): void
+    public function fastForward(Model $model, int $steps = 1): int
     {
         $this->assertRewindable($model);
 
         $targetVersion = $this->determineCurrentVersion($model) + $steps;
 
         try {
-            $this->goTo($model, $targetVersion);
+            return $this->goTo($model, $targetVersion);
         } catch (VersionDoesNotExistException) {
-            // If the target version doesn't exist, just go to the highest version
-            $this->goTo($model, $model->versions->max('version'));
+            // If the target version doesn't exist, clamp to the highest version
+            $maxVersion = $model->versions->max('version'); // @phpstan-ignore property.notFound
+
+            return $this->goTo($model, $maxVersion);
         }
     }
 
@@ -65,7 +69,7 @@ class RewindManager
      * @throws CurrentVersionColumnMissingException
      * @throws LockTimeoutException
      */
-    public function goTo($model, int $targetVersion): void
+    public function goTo(Model $model, int $targetVersion): int
     {
         $this->assertRewindable($model);
 
@@ -78,7 +82,7 @@ class RewindManager
             $this->eagerLoadVersions($model);
 
             // Validate the target version
-            $targetModel = $model->versions->where('version', $targetVersion)->first();
+            $targetModel = $model->versions->where('version', $targetVersion)->first(); // @phpstan-ignore property.notFound
             if (! $targetModel) {
                 throw new VersionDoesNotExistException('The specified version does not exist.');
             }
@@ -89,6 +93,8 @@ class RewindManager
 
             $this->updateModelVersionAndSave($model, $targetVersion);
         });
+
+        return $targetVersion;
     }
 
     /**
@@ -149,7 +155,7 @@ class RewindManager
      */
     protected function updateModelVersionAndSave($model, int $version): void
     {
-        if (! $this->modelHasCurrentVersionColumn($model)) {
+        if (! SchemaHelper::modelHasCurrentVersionColumn($model)) {
             return;
         }
 
@@ -157,7 +163,7 @@ class RewindManager
 
         $model->forceFill([
             'current_version' => $version,
-        ])->save();
+        ])->saveQuietly();
 
         $model->enableRewindEvents();
     }
@@ -170,7 +176,7 @@ class RewindManager
      */
     protected function determineCurrentVersion($model): int
     {
-        if ($this->modelHasCurrentVersionColumn($model)) {
+        if (SchemaHelper::modelHasCurrentVersionColumn($model)) {
             // Use the stored current_version, defaulting to 0
             return $model->current_version ?? 0;
         }
@@ -191,7 +197,7 @@ class RewindManager
             throw new ModelNotRewindableException(sprintf('%s must use the Rewindable trait in order to access Rewind functionality.', $model::class));
         }
 
-        if (! $this->modelHasCurrentVersionColumn($model)) {
+        if (! SchemaHelper::modelHasCurrentVersionColumn($model)) {
             throw new CurrentVersionColumnMissingException($model);
         }
     }
@@ -199,28 +205,5 @@ class RewindManager
     protected function eagerLoadVersions(Model $model): void
     {
         $model->load('versions');
-    }
-
-    /**
-     * Check if the model's table has a 'current_version' column.
-     */
-    protected function modelHasCurrentVersionColumn($model): bool
-    {
-        // First, check the cache to avoid unnecessary queries
-        $cacheKey = sprintf('rewind:tables:%s:has_current_version', $model->getTable());
-        if (Cache::has($cacheKey)) {
-            // We only store true values in the cache, so just return true if the key exists.
-            return true;
-        }
-
-        $result = Schema::connection($model->getConnectionName())
-            ->hasColumn($model->getTable(), 'current_version');
-
-        // If true, cache the result for a month We don't expect this to change.
-        if ($result) {
-            Cache::put($cacheKey, true, now()->addMonth());
-        }
-
-        return $result;
     }
 }
