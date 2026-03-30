@@ -6,6 +6,7 @@ use AvocetShores\LaravelRewind\Exceptions\CurrentVersionColumnMissingException;
 use AvocetShores\LaravelRewind\Exceptions\LaravelRewindException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 
 interface RewindManagerInterface
@@ -33,6 +34,7 @@ interface RewindManagerInterface
      * @throws ModelNotRewindableException
      * @throws VersionDoesNotExistException
      * @throws CurrentVersionColumnMissingException
+     * @throws LockTimeoutException
      */
     public function goTo(Model $model, int $targetVersion): int;
 

@@ -106,7 +106,12 @@ trait Rewindable
             }
         }
 
-        event(new RewindVersionCreating($this));
+        // Capture transient model state now so it survives serialization for queued listeners
+        event(new RewindVersionCreating(
+            model: $this,
+            changes: $changedAttributes,
+            wasRecentlyCreated: $this->wasRecentlyCreated,
+        ));
     }
 
     /**

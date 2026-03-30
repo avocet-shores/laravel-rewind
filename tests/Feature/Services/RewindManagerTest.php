@@ -7,6 +7,8 @@ use AvocetShores\LaravelRewind\Facades\Rewind;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
 use AvocetShores\LaravelRewind\Tests\Models\PostThatIsNotRewindable;
 use AvocetShores\LaravelRewind\Tests\Models\User;
+use Illuminate\Cache\Lock;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -513,3 +515,66 @@ it('resolves RewindManagerInterface from the container', function () {
 
     expect($manager)->toBeInstanceOf(\AvocetShores\LaravelRewind\Services\RewindManager::class);
 });
+
+// --- Fix 3: goTo() acquires a lock for concurrency safety ---
+
+it('acquires a cache lock when navigating via goTo', function () {
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+
+    $post->update([
+        'title' => 'Updated Title',
+        'body' => 'Updated Body',
+    ]);
+
+    // Spy on the cache to verify lock is acquired
+    $lockMock = Mockery::mock(Lock::class)->makePartial();
+    $lockMock->shouldReceive('block')
+        ->once()
+        ->andReturnUsing(function ($timeout, $callback) {
+            return $callback();
+        });
+
+    $cacheSpy = Cache::spy();
+    $cacheSpy->shouldReceive('lock')
+        ->once()
+        ->withArgs(function ($key, $timeout) use ($post) {
+            return str_contains($key, 'laravel-rewind-version-lock')
+                && str_contains($key, $post->getTable());
+        })
+        ->andReturn($lockMock);
+
+    // goTo should work and acquire a lock
+    Rewind::goTo($post, 1);
+
+    expect($post->current_version)->toBe(1);
+    expect($post->title)->toBe('Original Title');
+});
+
+it('throws LockTimeoutException when goTo cannot acquire a lock', function () {
+    $post = Post::create([
+        'user_id' => $this->user->id,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+
+    $post->update([
+        'title' => 'Updated Title',
+    ]);
+
+    // Mock cache lock to throw timeout
+    $lock = Mockery::mock(Lock::class)->makePartial();
+    $lock->shouldReceive('block')
+        ->once()
+        ->andThrow(LockTimeoutException::class);
+
+    $cacheSpy = Cache::spy();
+    $cacheSpy->shouldReceive('lock')
+        ->once()
+        ->andReturn($lock);
+
+    Rewind::goTo($post, 1);
+})->throws(LockTimeoutException::class);
