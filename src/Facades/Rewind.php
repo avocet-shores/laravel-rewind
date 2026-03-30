@@ -2,11 +2,12 @@
 
 namespace AvocetShores\LaravelRewind\Facades;
 
+use AvocetShores\LaravelRewind\Services\RewindManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @see \AvocetShores\LaravelRewind\Services\RewindManager
+ * @see RewindManager
  *
  * @method static void rewind(Model $model, int $steps = 1) Rewind by a specified number of steps
  * @method static void fastForward(Model $model, int $steps = 1) Fast-forward by a specified number of steps
