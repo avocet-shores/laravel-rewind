@@ -1,9 +1,11 @@
 <?php
 
+use AvocetShores\LaravelRewind\Contracts\RewindManagerInterface;
 use AvocetShores\LaravelRewind\Exceptions\CurrentVersionColumnMissingException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
 use AvocetShores\LaravelRewind\Facades\Rewind;
+use AvocetShores\LaravelRewind\Services\RewindManager;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
 use AvocetShores\LaravelRewind\Tests\Models\PostThatIsNotRewindable;
 use AvocetShores\LaravelRewind\Tests\Models\User;
@@ -511,9 +513,9 @@ it('caches when a table has the current_version column', function () {
 });
 
 it('resolves RewindManagerInterface from the container', function () {
-    $manager = app(\AvocetShores\LaravelRewind\Contracts\RewindManagerInterface::class);
+    $manager = app(RewindManagerInterface::class);
 
-    expect($manager)->toBeInstanceOf(\AvocetShores\LaravelRewind\Services\RewindManager::class);
+    expect($manager)->toBeInstanceOf(RewindManager::class);
 });
 
 // --- Fix 3: goTo() acquires a lock for concurrency safety ---
