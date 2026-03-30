@@ -105,4 +105,35 @@ return [
 
     'lock_wait' => env('REWIND_LOCK_WAIT', 20),
     'lock_timeout' => env('REWIND_LOCK_TIMEOUT', 10),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Max Versions Per Model
+    |--------------------------------------------------------------------------
+    |
+    | If set, the package will automatically prune old versions after creating
+    | a new one, keeping at most this many versions per model instance. This
+    | can be overridden per-model by defining a $maxRewindVersions property.
+    | Set to null to disable automatic pruning.
+    |
+    */
+
+    'max_versions' => env('LARAVEL_REWIND_MAX_VERSIONS'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Prune Command Defaults
+    |--------------------------------------------------------------------------
+    |
+    | These values serve as defaults for the rewind:prune Artisan command.
+    | They can be overridden at runtime via --keep and --days options.
+    |
+    | prune_keep_versions: Keep the last N versions per model instance.
+    | prune_older_than_days: Delete versions older than N days.
+    |
+    */
+
+    'prune_keep_versions' => env('LARAVEL_REWIND_PRUNE_KEEP'),
+
+    'prune_older_than_days' => env('LARAVEL_REWIND_PRUNE_DAYS'),
 ];

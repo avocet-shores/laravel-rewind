@@ -168,4 +168,15 @@ trait Rewindable
     {
         $this->disableRewindEvents = false;
     }
+
+    /**
+     * Get the maximum number of rewind versions to keep for this model.
+     * Override by defining a static $maxRewindVersions property on your model.
+     */
+    public static function maxRewindVersions(): ?int
+    {
+        return property_exists(static::class, 'maxRewindVersions')
+            ? static::$maxRewindVersions
+            : null;
+    }
 }

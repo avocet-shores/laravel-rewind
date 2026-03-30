@@ -5,6 +5,7 @@ namespace AvocetShores\LaravelRewind\Listeners;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreated;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
+use AvocetShores\LaravelRewind\Services\VersionPruner;
 use DateTimeInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
@@ -108,6 +109,9 @@ class CreateRewindVersion
             // Fire the "RewindVersionCreated" event
             event(new RewindVersionCreated($model, $rewindVersion));
 
+            // Auto-prune if a max versions cap is configured
+            $this->autoPruneIfNeeded($model);
+
         } catch (LockTimeoutException) {
             // If we cannot acquire a lock, something is most likely wrong with the environment
             $this->handleLockTimeoutException($model);
@@ -190,5 +194,16 @@ class CreateRewindVersion
     protected function isNotHead($model, int $nextVersion): bool
     {
         return $model->current_version && $model->current_version !== ($nextVersion - 1);
+    }
+
+    protected function autoPruneIfNeeded(Model $model): void
+    {
+        $maxVersions = $model->maxRewindVersions() ?? config('rewind.max_versions');
+
+        if ($maxVersions === null) {
+            return;
+        }
+
+        app(VersionPruner::class)->pruneForModel($model, (int) $maxVersions);
     }
 }
