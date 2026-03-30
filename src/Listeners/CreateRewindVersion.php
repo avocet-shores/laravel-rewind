@@ -4,6 +4,8 @@ namespace AvocetShores\LaravelRewind\Listeners;
 
 use AvocetShores\LaravelRewind\Events\RewindVersionCreated;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
+use AvocetShores\LaravelRewind\Events\RewindVersionLockTimeout;
+use AvocetShores\LaravelRewind\Exceptions\LockTimeoutRewindException;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Services\StateBuilder;
 use AvocetShores\LaravelRewind\Services\VersionPruner;
@@ -113,9 +115,9 @@ class CreateRewindVersion
             // Auto-prune if a max versions cap is configured
             $this->autoPruneIfNeeded($model);
 
-        } catch (LockTimeoutException) {
+        } catch (LockTimeoutException $e) {
             // If we cannot acquire a lock, something is most likely wrong with the environment
-            $this->handleLockTimeoutException($model);
+            $this->handleLockTimeoutException($model, $e);
 
             return;
         } finally {
@@ -123,9 +125,10 @@ class CreateRewindVersion
         }
     }
 
-    protected function handleLockTimeoutException($model): void
+    protected function handleLockTimeoutException($model, LockTimeoutException $e): void
     {
-        // Just log for now, but need to consider remediation options for this edge case.
+        $changes = $model->getChanges() ?: $model->getDirty();
+
         Log::error(sprintf(
             'Failed to acquire lock for RewindVersion creation on %s:%s, your versions may be out of sync.',
             get_class($model),
@@ -133,8 +136,25 @@ class CreateRewindVersion
         ), [
             'model' => get_class($model),
             'model_key' => $model->getKey(),
-            'changes' => $model->getChanges() ?: $model->getDirty(),
+            'changes' => $changes,
         ]);
+
+        $behavior = config('rewind.on_lock_timeout', 'log');
+
+        if (in_array($behavior, ['event', 'throw'], true)) {
+            event(new RewindVersionLockTimeout($model, $e, $changes));
+        }
+
+        if ($behavior === 'throw') {
+            throw new LockTimeoutRewindException(
+                sprintf(
+                    'Lock timeout while creating RewindVersion for %s:%s',
+                    get_class($model),
+                    $model->getKey(),
+                ),
+                previous: $e,
+            );
+        }
     }
 
     protected function rebuildHeadVersion($model): array

@@ -136,4 +136,23 @@ return [
     'prune_keep_versions' => env('LARAVEL_REWIND_PRUNE_KEEP'),
 
     'prune_older_than_days' => env('LARAVEL_REWIND_PRUNE_DAYS'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Lock Timeout Behavior
+    |--------------------------------------------------------------------------
+    |
+    | Determines what happens when a lock cannot be acquired for version creation.
+    | Supported values: "log", "event", "throw"
+    |
+    | - "log":   (default) Logs an error message. Silent failure.
+    | - "event": Logs the error AND dispatches a RewindVersionLockTimeout event
+    |            so you can attach listeners for alerting or custom retry logic.
+    | - "throw": Logs the error, dispatches the event, AND throws a
+    |            LockTimeoutRewindException. For queued listeners, this allows
+    |            Laravel's built-in retry mechanism ($tries, $backoff) to retry.
+    |
+    */
+
+    'on_lock_timeout' => env('LARAVEL_REWIND_ON_LOCK_TIMEOUT', 'log'),
 ];
