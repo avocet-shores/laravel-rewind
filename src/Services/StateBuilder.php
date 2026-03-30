@@ -5,7 +5,6 @@ namespace AvocetShores\LaravelRewind\Services;
 use AvocetShores\LaravelRewind\Enums\ApproachMethod;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
 
 class StateBuilder
 {
@@ -77,6 +76,10 @@ class StateBuilder
     /**
      * Step through version diffs from one version to another, applying
      * old_values (backward) or new_values (forward) as appropriate.
+     *
+     * Iterates through the actual version records in the collection rather
+     * than sequential integers, so gaps from pruned versions are handled
+     * correctly.
      */
     protected function buildFromDiffs(
         Collection $versions,
@@ -88,28 +91,22 @@ class StateBuilder
 
         if ($fromVersion > $targetVersion) {
             // Step downward: apply old_values to reverse each diff
-            for ($ver = $fromVersion; $ver > $targetVersion; $ver--) {
-                $versionRec = $versions->where('version', $ver)->first();
+            $steppingVersions = $versions
+                ->where('version', '>', $targetVersion)
+                ->where('version', '<=', $fromVersion)
+                ->sortByDesc('version');
 
-                if (! $versionRec) {
-                    Log::warning("Rewind: version record {$ver} is missing. State reconstruction may be incomplete.");
-
-                    continue;
-                }
-
+            foreach ($steppingVersions as $versionRec) {
                 $attributes = array_merge($attributes, $versionRec->old_values ?? []);
             }
         } else {
             // Step upward: apply new_values for each diff
-            for ($ver = $fromVersion + 1; $ver <= $targetVersion; $ver++) {
-                $versionRec = $versions->where('version', $ver)->first();
+            $steppingVersions = $versions
+                ->where('version', '>', $fromVersion)
+                ->where('version', '<=', $targetVersion)
+                ->sortBy('version');
 
-                if (! $versionRec) {
-                    Log::warning("Rewind: version record {$ver} is missing. State reconstruction may be incomplete.");
-
-                    continue;
-                }
-
+            foreach ($steppingVersions as $versionRec) {
                 $attributes = array_merge($attributes, $versionRec->new_values ?? []);
             }
         }
