@@ -199,7 +199,6 @@ class CreateRewindVersion
             : $value;
     }
 
-
     protected function isNotHead($model, int $nextVersion): bool
     {
         return $model->current_version && $model->current_version !== ($nextVersion - 1);

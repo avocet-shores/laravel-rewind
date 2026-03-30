@@ -196,5 +196,4 @@ class RewindManager implements RewindManagerInterface
     {
         $model->load('versions');
     }
-
 }
