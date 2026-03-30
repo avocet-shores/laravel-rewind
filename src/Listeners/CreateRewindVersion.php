@@ -187,7 +187,11 @@ class CreateRewindVersion
 
     protected function autoPruneIfNeeded(Model $model): void
     {
-        $maxVersions = $model->maxRewindVersions() ?? config('rewind.max_versions');
+        $maxVersions = method_exists($model, 'maxRewindVersions')
+            ? $model->maxRewindVersions()
+            : null;
+
+        $maxVersions = $maxVersions ?? config('rewind.max_versions');
 
         if ($maxVersions === null) {
             return;
