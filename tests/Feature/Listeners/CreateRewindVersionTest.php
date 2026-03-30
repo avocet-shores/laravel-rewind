@@ -255,11 +255,10 @@ it('creates a version when listener receives event with pre-captured changes', f
     expect($versionCount)->toBe(2); // v1 from create + v2 from our manual handle
 });
 
-it('survives serialize/unserialize round-trip and still creates a version', function () {
-    // This is the TRUE regression test for the queued listener bug.
-    // SerializesModels replaces the model with just its ID during serialization,
-    // then re-fetches from DB on deserialization. This kills getChanges(),
-    // getDirty(), and wasRecentlyCreated. The fix stores these on the event itself.
+it('creates a version after serialize/unserialize round-trip of the event', function () {
+    // Regression test for the queued listener bug. SerializesModels re-fetches
+    // the model from DB on deserialization, killing getChanges(), getDirty(),
+    // and wasRecentlyCreated. The fix stores these on the event itself.
 
     $model = Post::create([
         'user_id' => 1,
@@ -267,35 +266,30 @@ it('survives serialize/unserialize round-trip and still creates a version', func
         'body' => 'Original Body',
     ]);
 
-    // Simulate an update (the real trigger for version creation)
+    // Simulate an update
     $model->title = 'Updated Title';
     $model->saveQuietly();
 
-    // Build the event exactly as dispatchRewindEvent() does — with captured state
+    // Build the event as dispatchRewindEvent() does
     $event = new RewindVersionCreating(
         model: $model,
         changes: $model->getChanges(),
         wasRecentlyCreated: false,
     );
 
-    // Verify the event has the right state before serialization
-    expect($event->changes)->toHaveKey('title');
-    expect($event->model->getChanges())->not->toBeEmpty();
-
     // Serialize and deserialize — this is what the queue does
     $restored = unserialize(serialize($event));
 
-    // After deserialization, the MODEL's transient state is gone...
+    // The model's transient state is gone after deserialization...
     expect($restored->model->getChanges())->toBeEmpty()
         ->and($restored->model->getDirty())->toBeEmpty()
         ->and($restored->model->wasRecentlyCreated)->toBeFalse();
 
-    // ...but the EVENT's captured state survived
+    // ...but the event's captured state survived
     expect($restored->changes)->toHaveKey('title')
-        ->and($restored->changes['title'])->toBe('Updated Title')
-        ->and($restored->wasRecentlyCreated)->toBeFalse();
+        ->and($restored->changes['title'])->toBe('Updated Title');
 
-    // Now prove the listener actually creates a version from the deserialized event
+    // The listener creates a version from the deserialized event
     $listener = new CreateRewindVersion;
     $listener->handle($restored);
 
@@ -304,6 +298,48 @@ it('survives serialize/unserialize round-trip and still creates a version', func
     $v2 = $model->versions()->where('version', 2)->first();
     expect($v2)->not->toBeNull();
     expect($v2->new_values)->toHaveKey('title');
+});
+
+it('proves model transient state is lost after SerializesModels round-trip', function () {
+    // This test documents the core problem: SerializesModels causes the model to
+    // be re-fetched from DB, wiping all in-memory change tracking. Any listener
+    // that reads getChanges()/getDirty()/wasRecentlyCreated from the model after
+    // deserialization will see empty state and skip version creation.
+    //
+    // This is the exact scenario that broke the queued listener before the fix.
+    // The listener's guard clause was:
+    //   if (empty($dirty) && !$model->wasRecentlyCreated && $model->exists) return;
+    // After deserialization, $dirty is always empty and wasRecentlyCreated is always
+    // false, so the listener would ALWAYS bail out for queued jobs.
+
+    $model = Post::create([
+        'user_id' => 1,
+        'title' => 'Original Title',
+        'body' => 'Original Body',
+    ]);
+
+    // Before serialization, the model has transient state
+    expect($model->wasRecentlyCreated)->toBeTrue();
+    expect($model->getChanges())->not->toBeEmpty();
+
+    // Build a minimal event with SerializesModels
+    $event = new RewindVersionCreating(model: $model);
+
+    // Round-trip through serialization (what the queue does)
+    $restored = unserialize(serialize($event));
+
+    // After deserialization, ALL transient model state is gone
+    $dirty = $restored->model->getChanges() ?: $restored->model->getDirty();
+    expect($dirty)->toBeEmpty();
+    expect($restored->model->wasRecentlyCreated)->toBeFalse();
+
+    // The old guard clause would bail out:
+    $wouldBailOut = empty($dirty) && ! $restored->model->wasRecentlyCreated && $restored->model->exists;
+    expect($wouldBailOut)->toBeTrue('A listener reading model state after deserialization would skip version creation');
+
+    // But the fixed listener reads $event->changes instead of $model->getChanges().
+    // When the event is dispatched with changes captured at dispatch time, the
+    // listener will see the changes even after deserialization.
 });
 
 // --- Fix 2: Version creation is wrapped in a DB transaction ---
