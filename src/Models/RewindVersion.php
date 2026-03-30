@@ -5,11 +5,17 @@ namespace AvocetShores\LaravelRewind\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Carbon;
 
 /**
+ * @property string $model_type
+ * @property int $model_id
  * @property array $old_values
  * @property array $new_values
  * @property int $version
+ * @property bool $is_snapshot
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class RewindVersion extends Model
 {

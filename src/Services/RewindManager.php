@@ -2,12 +2,10 @@
 
 namespace AvocetShores\LaravelRewind\Services;
 
-use AvocetShores\LaravelRewind\Enums\ApproachMethod;
 use AvocetShores\LaravelRewind\Exceptions\CurrentVersionColumnMissingException;
 use AvocetShores\LaravelRewind\Exceptions\LaravelRewindException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
-use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Traits\Rewindable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -17,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
 class RewindManager
 {
     public function __construct(
-        protected ApproachEngine $approachEngine,
+        protected StateBuilder $stateBuilder,
     ) {}
 
     /**
@@ -123,67 +121,17 @@ class RewindManager
         $model->load('versions');
         $currentVersion = $this->determineCurrentVersion($model);
 
-        // First, determine the fastest approach
-        $approach = $this->approachEngine->run($model, $currentVersion, $targetVersion);
+        $currentAttributes = Arr::except(
+            $model->attributesToArray(),
+            $model->getExcludedRewindableAttributes()
+        );
 
-        return match ($approach->method) {
-            ApproachMethod::None => $model->toArray(),
-            ApproachMethod::Direct => $this->buildFromDiffs(
-                model: $model,
-                currentVersion: $currentVersion,
-                targetVersion: $targetVersion
-            ),
-            ApproachMethod::From_Snapshot => $this->buildFromDiffs(
-                model: $model,
-                currentVersion: $approach->snapshot->version,
-                targetVersion: $targetVersion,
-                snapshot: $approach->snapshot
-            ),
-        };
-    }
-
-    protected function buildFromDiffs($model, int $currentVersion, int $targetVersion, ?RewindVersion $snapshot = null): array
-    {
-        $attributes = is_null($snapshot) ?
-            $model->attributesToArray() :
-            $snapshot->new_values ?? [];
-
-        // Remove any attributes that are excluded
-        $attributes = Arr::except($attributes, $model->getExcludedRewindableAttributes());
-
-        if ($currentVersion > $targetVersion) {
-            // Step downward from currentVersion until targetVersion
-            for ($ver = $currentVersion; $ver > $targetVersion; $ver--) {
-                $versionRec = $model->versions
-                    ->where('version', $ver)
-                    ->first();
-
-                // If there's no partial diff for $ver (e.g. it doesn't exist), skip
-                if (! $versionRec) {
-                    continue;
-                }
-
-                // Reverse the partial diff by applying "old_values"
-                $attributes = array_merge($attributes, $versionRec->old_values);
-            }
-        } else {
-            // Step upward from currentVersion+1 until targetVersion
-            for ($ver = $currentVersion + 1; $ver <= $targetVersion; $ver++) {
-                $versionRec = $model->versions
-                    ->where('version', $ver)
-                    ->first();
-
-                // If there's no partial diff for $ver (e.g. if it was a snapshot or doesn't exist), skip
-                if (! $versionRec) {
-                    continue;
-                }
-
-                // Apply the partial diff
-                $attributes = array_merge($attributes, $versionRec->new_values);
-            }
-        }
-
-        return $attributes;
+        return $this->stateBuilder->buildStateForVersion(
+            versions: $model->versions,
+            currentVersion: $currentVersion,
+            targetVersion: $targetVersion,
+            currentAttributes: $currentAttributes,
+        );
     }
 
     /**

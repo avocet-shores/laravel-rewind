@@ -7,6 +7,8 @@ use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Events\RewindVersionLockTimeout;
 use AvocetShores\LaravelRewind\Exceptions\LockTimeoutRewindException;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
+use AvocetShores\LaravelRewind\Services\StateBuilder;
+use AvocetShores\LaravelRewind\Services\VersionPruner;
 use DateTimeInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
@@ -110,6 +112,9 @@ class CreateRewindVersion
             // Fire the "RewindVersionCreated" event
             event(new RewindVersionCreated($model, $rewindVersion));
 
+            // Auto-prune if a max versions cap is configured
+            $this->autoPruneIfNeeded($model);
+
         } catch (LockTimeoutException $e) {
             // If we cannot acquire a lock, something is most likely wrong with the environment
             $this->handleLockTimeoutException($model, $e);
@@ -154,25 +159,13 @@ class CreateRewindVersion
 
     protected function rebuildHeadVersion($model): array
     {
-        $data = [];
-        $lastSnapshot = $model->versions()
-            ->where('is_snapshot', true)
-            ->latest('version')
-            ->first();
+        $headVersion = $model->versions()->max('version') ?? 0;
 
-        if ($lastSnapshot) {
-            $data = $lastSnapshot->new_values;
-        }
-
-        // Loop through all versions since the last snapshot
-        $model->versions()
-            ->where('version', '>', $lastSnapshot?->version ?? 0)
-            ->orderBy('version')
-            ->each(function ($version) use (&$data) {
-                $data = array_merge($data, $version->new_values);
-            });
-
-        return $data;
+        return app(StateBuilder::class)->reconstructStateAtVersion(
+            $model->getMorphClass(),
+            $model->getKey(),
+            $headVersion,
+        );
     }
 
     protected function computeTrackableAttributes($model): array
@@ -210,5 +203,20 @@ class CreateRewindVersion
     protected function isNotHead($model, int $nextVersion): bool
     {
         return $model->current_version && $model->current_version !== ($nextVersion - 1);
+    }
+
+    protected function autoPruneIfNeeded(Model $model): void
+    {
+        $maxVersions = method_exists($model, 'maxRewindVersions')
+            ? $model->maxRewindVersions()
+            : null;
+
+        $maxVersions = $maxVersions ?? config('rewind.max_versions');
+
+        if ($maxVersions === null) {
+            return;
+        }
+
+        app(VersionPruner::class)->pruneForModel($model, (int) $maxVersions);
     }
 }
