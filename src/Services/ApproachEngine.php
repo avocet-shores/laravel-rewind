@@ -4,6 +4,7 @@ namespace AvocetShores\LaravelRewind\Services;
 
 use AvocetShores\LaravelRewind\Dto\ApproachPlan;
 use AvocetShores\LaravelRewind\Enums\ApproachMethod;
+use Illuminate\Support\Collection;
 
 class ApproachEngine
 {
@@ -16,9 +17,9 @@ class ApproachEngine
      *
      * This returns an ApproachPlan describing the best approach and the intermediate snapshot (if any).
      */
-    public function run($model, int $currentVersion, int $targetVersion): ApproachPlan
+    public function run(Collection $versions, int $currentVersion, int $targetVersion): ApproachPlan
     {
-        // If currentVersion == targetVersion, there’s nothing to do.
+        // If currentVersion == targetVersion, there's nothing to do.
         if ($currentVersion === $targetVersion) {
             return new ApproachPlan(
                 method: ApproachMethod::None,
@@ -26,25 +27,23 @@ class ApproachEngine
             );
         }
 
-        $model->load('versions');
-
         // Count partial diffs for direct forward/backward from currentVersion.
-        $directCost = $this->countPartialDiffs($model, min($currentVersion, $targetVersion), max($currentVersion, $targetVersion));
+        $directCost = $this->countPartialDiffs($versions, min($currentVersion, $targetVersion), max($currentVersion, $targetVersion));
 
         // Find nearest snapshot behind (or equal to) the target if we want to replay forward from a snapshot.
-        $snapshotBehind = $this->findNearestSnapshotBehind($model, $targetVersion);
+        $snapshotBehind = $this->findNearestSnapshotBehind($versions, $targetVersion);
         $snapshotBehindCost = null;
         if ($snapshotBehind) {
             $snapshotVersion = $snapshotBehind->version;
             // Jumping to the snapshot counts as 1 step/cost
-            $snapshotBehindCost = 1 + $this->countPartialDiffs($model, $snapshotVersion, $targetVersion);
+            $snapshotBehindCost = 1 + $this->countPartialDiffs($versions, $snapshotVersion, $targetVersion);
         }
 
         // Find nearest snapshot ahead of the target to overshoot and then step backward.
-        $snapshotAhead = $this->findNearestSnapshotAhead($model, $targetVersion);
+        $snapshotAhead = $this->findNearestSnapshotAhead($versions, $targetVersion);
         $snapshotAheadCost = null;
         if ($snapshotAhead) {
-            $snapshotAheadCost = 1 + $this->countPartialDiffs($model, $targetVersion, $snapshotAhead->version);
+            $snapshotAheadCost = 1 + $this->countPartialDiffs($versions, $targetVersion, $snapshotAhead->version);
         }
 
         // Build a small array of potential approaches
@@ -81,13 +80,13 @@ class ApproachEngine
     /**
      * Count how many partial diffs lie strictly between $fromVersion and $toVersion (inclusive of $toVersion).
      */
-    protected function countPartialDiffs($model, int $fromVersion, int $toVersion): int
+    protected function countPartialDiffs(Collection $versions, int $fromVersion, int $toVersion): int
     {
         if ($toVersion <= $fromVersion) {
             return 0;
         }
 
-        return $model->versions
+        return $versions
             ->where('version', '>', $fromVersion)
             ->where('version', '<=', $toVersion)
             ->count();
@@ -96,9 +95,9 @@ class ApproachEngine
     /**
      * Find the closest snapshot at or below $version.
      */
-    protected function findNearestSnapshotBehind($model, int $version)
+    protected function findNearestSnapshotBehind(Collection $versions, int $version)
     {
-        return $model->versions
+        return $versions
             ->where('is_snapshot', true)
             ->where('version', '<=', $version)
             ->sortByDesc('version')
@@ -108,9 +107,9 @@ class ApproachEngine
     /**
      * Find the closest snapshot at or above $version.
      */
-    protected function findNearestSnapshotAhead($model, int $version)
+    protected function findNearestSnapshotAhead(Collection $versions, int $version)
     {
-        return $model->versions
+        return $versions
             ->where('is_snapshot', true)
             ->where('version', '>=', $version)
             ->sortBy('version')

@@ -74,34 +74,4 @@ class RewindVersion extends Model
         return $this->morphTo();
     }
 
-    /**
-     * Reconstruct the full model state at a given version by finding the nearest
-     * snapshot and replaying diffs forward.
-     */
-    public static function reconstructStateAtVersion(string $modelType, mixed $modelId, int $targetVersion): array
-    {
-        $versions = static::query()
-            ->where('model_type', $modelType)
-            ->where('model_id', $modelId)
-            ->where('version', '<=', $targetVersion)
-            ->orderBy('version')
-            ->get();
-
-        $snapshot = $versions->where('is_snapshot', true)->sortByDesc('version')->first();
-
-        $state = $snapshot ? ($snapshot->new_values ?? []) : [];
-
-        $startVersion = $snapshot ? $snapshot->version : 0;
-        $versions
-            ->where('version', '>', $startVersion)
-            ->where('version', '<=', $targetVersion)
-            ->sortBy('version')
-            ->each(function ($version) use (&$state) {
-                if ($version->new_values) {
-                    $state = array_merge($state, $version->new_values);
-                }
-            });
-
-        return $state;
-    }
 }

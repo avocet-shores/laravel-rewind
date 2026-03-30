@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\DB;
 
 class VersionPruner
 {
+    public function __construct(
+        protected StateBuilder $stateBuilder,
+    ) {}
     /**
      * Prune versions based on criteria. Returns the result with deletion counts.
      */
@@ -162,7 +165,7 @@ class VersionPruner
      */
     protected function convertToSnapshot(string $modelType, mixed $modelId, int $targetVersion): void
     {
-        $state = RewindVersion::reconstructStateAtVersion($modelType, $modelId, $targetVersion);
+        $state = $this->stateBuilder->reconstructStateAtVersion($modelType, $modelId, $targetVersion);
 
         RewindVersion::query()
             ->where('model_type', $modelType)

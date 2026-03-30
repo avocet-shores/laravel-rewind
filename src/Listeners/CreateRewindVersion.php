@@ -5,6 +5,7 @@ namespace AvocetShores\LaravelRewind\Listeners;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreated;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
+use AvocetShores\LaravelRewind\Services\StateBuilder;
 use AvocetShores\LaravelRewind\Services\VersionPruner;
 use DateTimeInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -140,7 +141,7 @@ class CreateRewindVersion
     {
         $headVersion = $model->versions()->max('version') ?? 0;
 
-        return RewindVersion::reconstructStateAtVersion(
+        return app(StateBuilder::class)->reconstructStateAtVersion(
             $model->getMorphClass(),
             $model->getKey(),
             $headVersion,
