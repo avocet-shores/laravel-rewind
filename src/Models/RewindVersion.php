@@ -73,5 +73,4 @@ class RewindVersion extends Model
     {
         return $this->morphTo();
     }
-
 }

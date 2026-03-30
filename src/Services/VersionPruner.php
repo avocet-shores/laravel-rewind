@@ -13,6 +13,7 @@ class VersionPruner
     public function __construct(
         protected StateBuilder $stateBuilder,
     ) {}
+
     /**
      * Prune versions based on criteria. Returns the result with deletion counts.
      */

@@ -4,11 +4,12 @@ use AvocetShores\LaravelRewind\Dto\ApproachPlan;
 use AvocetShores\LaravelRewind\Enums\ApproachMethod;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Services\ApproachEngine;
+use Illuminate\Support\Collection;
 
 /**
  * Helper: Create a versions collection from an array of version definitions.
  */
-function makeVersionsCollection(array $versions): \Illuminate\Support\Collection
+function makeVersionsCollection(array $versions): Collection
 {
     return collect($versions)->map(fn ($v) => RewindVersion::make([
         'version' => $v['version'],
