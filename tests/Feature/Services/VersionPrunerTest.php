@@ -2,6 +2,7 @@
 
 use AvocetShores\LaravelRewind\Facades\Rewind;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
+use AvocetShores\LaravelRewind\Services\StateBuilder;
 use AvocetShores\LaravelRewind\Services\VersionPruner;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
 use AvocetShores\LaravelRewind\Tests\Models\User;
@@ -136,6 +137,43 @@ it('supports pretend mode in the service', function () {
     expect($result->totalDeleted)->toBe(7);
     // Nothing actually deleted
     expect(RewindVersion::count())->toBe(10);
+});
+
+it('handles missing version records gracefully during state reconstruction', function () {
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'v1', 'body' => 'body']);
+    for ($i = 2; $i <= 5; $i++) {
+        $post->update(['title' => "v{$i}"]);
+    }
+
+    // Delete a middle version to create a gap
+    RewindVersion::where('model_type', $post->getMorphClass())
+        ->where('model_id', $post->id)
+        ->where('version', 3)
+        ->delete();
+
+    // StateBuilder should still reconstruct, skipping the missing version
+    $stateBuilder = app(StateBuilder::class);
+    $state = $stateBuilder->reconstructStateAtVersion(
+        $post->getMorphClass(),
+        $post->id,
+        5,
+    );
+
+    expect($state)->toBeArray();
+    expect($state)->toHaveKey('title');
+});
+
+it('returns zero when no versions are old enough to prune by age', function () {
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'v1', 'body' => 'body']);
+    for ($i = 2; $i <= 5; $i++) {
+        $post->update(['title' => "v{$i}"]);
+    }
+
+    // All versions are recent, none older than 30 days
+    $result = $this->pruner->prune(olderThanDays: 30);
+
+    expect($result->totalDeleted)->toBe(0);
+    expect(RewindVersion::count())->toBe(5);
 });
 
 it('prunes by age correctly', function () {

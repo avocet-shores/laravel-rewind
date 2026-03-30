@@ -17,6 +17,10 @@ beforeEach(function () {
     test()->actingAs($this->user);
 });
 
+it('returns null from maxRewindVersions when property is not defined', function () {
+    expect(Post::maxRewindVersions())->toBeNull();
+});
+
 it('does not auto-prune when max_versions is null', function () {
     config()->set('rewind.max_versions', null);
 

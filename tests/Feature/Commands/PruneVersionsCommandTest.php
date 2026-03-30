@@ -2,8 +2,11 @@
 
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
+use AvocetShores\LaravelRewind\Tests\Models\Template;
 use AvocetShores\LaravelRewind\Tests\Models\User;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 
 use function Pest\Laravel\artisan;
 
@@ -149,6 +152,30 @@ it('never deletes the latest version', function () {
     expect(RewindVersion::count())->toBe(1);
     $remaining = RewindVersion::first();
     expect($remaining->version)->toBe(2);
+});
+
+it('shows per-model-type breakdown when pruning multiple model types', function () {
+    Schema::table('templates', function (Blueprint $table) {
+        $table->unsignedBigInteger('current_version')->nullable();
+    });
+
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'v1', 'body' => 'body']);
+    for ($i = 2; $i <= 6; $i++) {
+        $post->update(['title' => "v{$i}"]);
+    }
+
+    $template = Template::create(['name' => 'v1', 'content' => 'content']);
+    for ($i = 2; $i <= 6; $i++) {
+        $template->update(['name' => "v{$i}"]);
+    }
+
+    $postMorph = (new Post)->getMorphClass();
+    $templateMorph = (new Template)->getMorphClass();
+
+    artisan('rewind:prune', ['--keep' => 2, '--force' => true])
+        ->expectsOutputToContain("- {$postMorph}:")
+        ->expectsOutputToContain("- {$templateMorph}:")
+        ->assertExitCode(0);
 });
 
 it('handles combined --days and --keep', function () {
