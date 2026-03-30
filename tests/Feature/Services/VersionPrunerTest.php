@@ -87,6 +87,21 @@ it('returns zero when under the cap', function () {
     expect(RewindVersion::count())->toBe(2);
 });
 
+it('returns zero when model has no versions at all', function () {
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'v1', 'body' => 'body']);
+
+    // Delete all versions to simulate a model with no version records
+    RewindVersion::where('model_id', $post->id)->delete();
+
+    // Non-pretend path
+    $deleted = $this->pruner->pruneForModel($post, 5);
+    expect($deleted)->toBe(0);
+
+    // Pretend path
+    $result = $this->pruner->prune(keepCount: 5, pretend: true);
+    expect($result->totalDeleted)->toBe(0);
+});
+
 it('preserves navigability after pruning', function () {
     $post = Post::create(['user_id' => $this->user->id, 'title' => 'v1', 'body' => 'body']);
     for ($i = 2; $i <= 12; $i++) {

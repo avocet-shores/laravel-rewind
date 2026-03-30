@@ -34,7 +34,7 @@ class RewindManager implements RewindManagerInterface
             return $this->goTo($model, $targetVersion);
         } catch (VersionDoesNotExistException) {
             // If the target version doesn't exist, clamp to the lowest version
-            $minVersion = $model->versions->min('version');
+            $minVersion = $model->versions->min('version'); // @phpstan-ignore property.notFound
 
             return $this->goTo($model, $minVersion);
         }
@@ -55,7 +55,7 @@ class RewindManager implements RewindManagerInterface
             return $this->goTo($model, $targetVersion);
         } catch (VersionDoesNotExistException) {
             // If the target version doesn't exist, clamp to the highest version
-            $maxVersion = $model->versions->max('version');
+            $maxVersion = $model->versions->max('version'); // @phpstan-ignore property.notFound
 
             return $this->goTo($model, $maxVersion);
         }
@@ -82,7 +82,7 @@ class RewindManager implements RewindManagerInterface
             $this->eagerLoadVersions($model);
 
             // Validate the target version
-            $targetModel = $model->versions->where('version', $targetVersion)->first();
+            $targetModel = $model->versions->where('version', $targetVersion)->first(); // @phpstan-ignore property.notFound
             if (! $targetModel) {
                 throw new VersionDoesNotExistException('The specified version does not exist.');
             }
