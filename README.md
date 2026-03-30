@@ -206,6 +206,70 @@ If you have an existing model and want to add a v1 record without making any cha
 $post->initVersion();
 ```
 
+### Pruning Old Versions
+
+Over time, the `rewind_versions` table can grow quite large. You can clean it up with the `rewind:prune` command.
+
+To keep only the last N versions per model instance:
+
+```bash
+php artisan rewind:prune --keep=50
+```
+
+To delete versions older than a certain number of days:
+
+```bash
+php artisan rewind:prune --days=365
+```
+
+You can combine both. When used together, `--keep` protects the most recent N versions regardless of age, and `--days` only prunes from the remaining versions that are old enough:
+
+```bash
+php artisan rewind:prune --keep=50 --days=365
+```
+
+If you only want to prune versions for specific model types, use the `--model` option:
+
+```bash
+php artisan rewind:prune --keep=50 --model=App\\Models\\Post
+```
+
+To see what would be deleted without actually deleting anything, use `--pretend`:
+
+```bash
+php artisan rewind:prune --keep=50 --pretend
+```
+
+You can schedule the command to run automatically. Use `--force` to skip the confirmation prompt:
+
+```php
+// In routes/console.php or your Console Kernel
+Schedule::command('rewind:prune --keep=50 --force')->daily();
+```
+
+When versions are pruned, Rewind automatically converts the new oldest remaining version into a full snapshot. This means `Rewind::goTo()` will continue to work for all surviving versions.
+
+You can also set defaults for `--keep` and `--days` in `config/rewind.php` via `prune_keep_versions` and `prune_older_than_days`. The command will use these when no options are passed.
+
+### Automatic Version Limits
+
+If you want to cap how many versions a model keeps, add a `$maxRewindVersions` property to your model:
+
+```php
+use AvocetShores\LaravelRewind\Traits\Rewindable;
+
+class Post extends Model
+{
+    use Rewindable;
+
+    protected static int $maxRewindVersions = 30;
+}
+```
+
+When a new version is created and the count exceeds this limit, the oldest versions are automatically pruned.
+
+You can also set a global default via the `max_versions` option in `config/rewind.php`. The per-model property takes precedence over the global config.
+
 ## Testing
 
 ```bash
