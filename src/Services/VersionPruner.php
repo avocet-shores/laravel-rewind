@@ -162,33 +162,8 @@ class VersionPruner
      */
     protected function convertToSnapshot(string $modelType, mixed $modelId, int $targetVersion): void
     {
-        // Load all versions from the beginning up through the target version
-        $versions = RewindVersion::query()
-            ->where('model_type', $modelType)
-            ->where('model_id', $modelId)
-            ->where('version', '<=', $targetVersion)
-            ->orderBy('version')
-            ->get();
+        $state = RewindVersion::reconstructStateAtVersion($modelType, $modelId, $targetVersion);
 
-        // Find the nearest snapshot at or below the target version
-        $snapshot = $versions->where('is_snapshot', true)->sortByDesc('version')->first();
-
-        // Start from the snapshot's new_values, or empty if no snapshot found
-        $state = $snapshot ? ($snapshot->new_values ?? []) : [];
-
-        // Replay diffs forward from the snapshot to the target version
-        $startVersion = $snapshot ? $snapshot->version : 0;
-        $versions
-            ->where('version', '>', $startVersion)
-            ->where('version', '<=', $targetVersion)
-            ->sortBy('version')
-            ->each(function ($version) use (&$state) {
-                if ($version->new_values) {
-                    $state = array_merge($state, $version->new_values);
-                }
-            });
-
-        // Update the target version to be a snapshot
         RewindVersion::query()
             ->where('model_type', $modelType)
             ->where('model_id', $modelId)

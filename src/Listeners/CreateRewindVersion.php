@@ -138,25 +138,13 @@ class CreateRewindVersion
 
     protected function rebuildHeadVersion($model): array
     {
-        $data = [];
-        $lastSnapshot = $model->versions()
-            ->where('is_snapshot', true)
-            ->latest('version')
-            ->first();
+        $headVersion = $model->versions()->max('version') ?? 0;
 
-        if ($lastSnapshot) {
-            $data = $lastSnapshot->new_values;
-        }
-
-        // Loop through all versions since the last snapshot
-        $model->versions()
-            ->where('version', '>', $lastSnapshot?->version ?? 0)
-            ->orderBy('version')
-            ->each(function ($version) use (&$data) {
-                $data = array_merge($data, $version->new_values);
-            });
-
-        return $data;
+        return RewindVersion::reconstructStateAtVersion(
+            $model->getMorphClass(),
+            $model->getKey(),
+            $headVersion,
+        );
     }
 
     protected function computeTrackableAttributes($model): array
