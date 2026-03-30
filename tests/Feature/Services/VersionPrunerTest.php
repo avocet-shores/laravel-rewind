@@ -139,6 +139,53 @@ it('supports pretend mode in the service', function () {
     expect(RewindVersion::count())->toBe(10);
 });
 
+it('produces correct snapshots after successive prune cycles remove earlier snapshots', function () {
+    // Regression: when auto-prune fires after every version creation, each cycle's
+    // transaction deletes old versions. On subsequent cycles, reconstructStateAtVersion
+    // starts from version 0 with empty attributes. The approach engine may pick the
+    // Direct path (from=0, target=N), which walks through version numbers that were
+    // pruned in previous cycles.
+    //
+    // buildFromDiffs must handle these gaps without errors and produce correct state.
+    // The fix: iterate actual version records in the collection, not sequential integers.
+    config()->set('rewind.snapshot_interval', 100); // avoid interval snapshots
+
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'v1', 'body' => 'original body']);
+
+    // Simulate auto-prune after each update (like the real auto-prune flow).
+    // Each prune is a separate committed transaction, so deletions persist
+    // and are visible to subsequent prune cycles.
+    $maxVersions = 5;
+    for ($i = 2; $i <= 8; $i++) {
+        $post->update(['title' => "v{$i}"]);
+        $this->pruner->pruneForModel($post, $maxVersions);
+    }
+
+    // After many prune cycles, only the last 5 versions should remain
+    $remaining = RewindVersion::where('model_id', $post->id)
+        ->orderBy('version')
+        ->pluck('version')
+        ->toArray();
+    expect($remaining)->toBe([4, 5, 6, 7, 8]);
+
+    // The oldest remaining version must be a valid snapshot with ALL attributes,
+    // including 'body' which was set at creation time (v1, now pruned).
+    // The snapshot chain must have preserved it through successive conversions.
+    $oldest = RewindVersion::where('model_id', $post->id)->orderBy('version')->first();
+    expect($oldest->is_snapshot)->toBeTrue();
+    expect($oldest->new_values['title'])->toBe('v4');
+    expect($oldest->new_values)->toHaveKey('body');
+    expect($oldest->new_values['body'])->toBe('original body');
+
+    // All remaining versions must be navigable with correct state
+    foreach ($remaining as $version) {
+        Rewind::goTo($post->fresh(), $version);
+        $fresh = $post->fresh();
+        expect($fresh->title)->toBe("v{$version}");
+        expect($fresh->body)->toBe('original body');
+    }
+});
+
 it('handles missing version records gracefully during state reconstruction', function () {
     $post = Post::create(['user_id' => $this->user->id, 'title' => 'v1', 'body' => 'body']);
     for ($i = 2; $i <= 5; $i++) {
@@ -161,6 +208,59 @@ it('handles missing version records gracefully during state reconstruction', fun
 
     expect($state)->toBeArray();
     expect($state)->toHaveKey('title');
+});
+
+it('reconstructs state correctly when version records have gaps from pruning', function () {
+    // Regression: buildFromDiffs previously iterated through sequential integers
+    // (for $ver = fromVersion+1; $ver <= targetVersion; $ver++). After pruning,
+    // the old versions are gone but the new oldest has been converted to a snapshot
+    // (the pruner converts BEFORE deleting). This test simulates the real pruner
+    // flow: convert first, then delete, then verify state is correct.
+    config()->set('rewind.snapshot_interval', 100);
+
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'v1', 'body' => 'original']);
+    for ($i = 2; $i <= 8; $i++) {
+        $post->update(['title' => "v{$i}"]);
+    }
+
+    $stateBuilder = app(StateBuilder::class);
+
+    // Simulate first prune cycle: convert v3 to snapshot BEFORE deleting v1,v2
+    // (this is what the real pruner does inside its transaction)
+    $stateAtV3 = $stateBuilder->reconstructStateAtVersion(
+        $post->getMorphClass(), $post->id, 3,
+    );
+    $v3 = RewindVersion::where('model_id', $post->id)->where('version', 3)->first();
+    $v3->new_values = $stateAtV3;
+    $v3->is_snapshot = true;
+    $v3->save();
+    RewindVersion::where('model_id', $post->id)->where('version', '<=', 2)->delete();
+
+    // Simulate second prune cycle: convert v5 BEFORE deleting v3,v4
+    $stateAtV5 = $stateBuilder->reconstructStateAtVersion(
+        $post->getMorphClass(), $post->id, 5,
+    );
+    $v5 = RewindVersion::where('model_id', $post->id)->where('version', 5)->first();
+    $v5->new_values = $stateAtV5;
+    $v5->is_snapshot = true;
+    $v5->save();
+    RewindVersion::where('model_id', $post->id)->where('version', '<=', 4)->delete();
+
+    // Only v5-v8 remain, v5 is a snapshot
+    $remaining = RewindVersion::where('model_id', $post->id)
+        ->orderBy('version')->pluck('version')->toArray();
+    expect($remaining)->toBe([5, 6, 7, 8]);
+
+    // Reconstruct state at v8 — must include body from original creation,
+    // preserved through the snapshot chain
+    $state = $stateBuilder->reconstructStateAtVersion(
+        $post->getMorphClass(), $post->id, 8,
+    );
+
+    expect($state)->toHaveKey('title');
+    expect($state['title'])->toBe('v8');
+    expect($state)->toHaveKey('body');
+    expect($state['body'])->toBe('original');
 });
 
 it('returns zero when no versions are old enough to prune by age', function () {
