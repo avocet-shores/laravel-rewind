@@ -141,7 +141,7 @@ class VersionPruner
         $connection = (new RewindVersion)->getConnectionName();
 
         return DB::connection($connection)->transaction(function () use (
-            $modelType, $modelId, $newOldest, $prunableIds, $prunableVersionNumbers
+            $modelType, $modelId, $newOldest, $prunableIds
         ) {
             // If the new oldest version is not a snapshot, convert it
             if ($newOldest && ! $newOldest->is_snapshot) {
