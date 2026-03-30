@@ -7,12 +7,13 @@ use AvocetShores\LaravelRewind\Listeners\CreateRewindVersion;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
 use Illuminate\Cache\PhpRedisLock;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 
 function mockLockTimeout(): void
 {
-    $lock = \Mockery::mock(PhpRedisLock::class);
+    $lock = Mockery::mock(PhpRedisLock::class);
     $lock->shouldReceive('block')
         ->once()
         ->andThrow(LockTimeoutException::class);
@@ -20,7 +21,7 @@ function mockLockTimeout(): void
     $lock->shouldReceive('release')
         ->once();
 
-    $cacheSpy = \Illuminate\Support\Facades\Cache::spy();
+    $cacheSpy = Cache::spy();
     $cacheSpy->shouldReceive('lock')
         ->once()
         ->andReturn($lock);
