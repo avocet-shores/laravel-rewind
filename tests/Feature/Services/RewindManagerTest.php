@@ -44,9 +44,10 @@ it('rewinds a model to the previous version on rewind', function () {
     $this->assertSame(2, $post->current_version);
 
     // Act: Rewind the last version
-    Rewind::rewind($post);
+    $version = Rewind::rewind($post);
 
     // Assert: The model should be reverted to the previous version
+    expect($version)->toBe(1);
     $this->assertSame(1, $post->current_version);
     $this->assertSame('Original Title', $post->title);
     $this->assertSame('Original Body', $post->body);
@@ -79,9 +80,10 @@ it('rewinds a model to the next version on fast-forward', function () {
     $this->assertSame('Original Body', $post->body);
 
     // Act: Fast-forward the last version
-    Rewind::fastForward($post);
+    $version = Rewind::fastForward($post);
 
     // Assert: The model should be reverted to the next version
+    expect($version)->toBe(2);
     $this->assertSame(2, $post->current_version);
     $this->assertSame('Updated Title', $post->title);
     $this->assertSame('Updated Body', $post->body);
@@ -144,9 +146,10 @@ it('can jump to a specified version', function () {
     $this->assertSame(2, $post->current_version);
 
     // Act: Jump to version 1
-    Rewind::goTo($post, 1);
+    $version = Rewind::goTo($post, 1);
 
     // Assert: The model should be reverted to the previous version
+    expect($version)->toBe(1);
     $this->assertSame(1, $post->current_version);
     $this->assertSame('Original Title', $post->title);
     $this->assertSame('Original Body', $post->body);
@@ -408,10 +411,11 @@ it('moves to the lowest available version when we try to rewind before version 1
     // Assert the model has current_version set to 1
     $this->assertSame(1, $post->current_version);
 
-    // Act: Rewind the last version
-    Rewind::rewind($post);
+    // Act: Rewind the last version (already at 1, so clamps to 1)
+    $version = Rewind::rewind($post);
 
-    // Assert: The model should be at the lowest version
+    // Assert: The model should be at the lowest version and return it
+    expect($version)->toBe(1);
     $this->assertSame(1, $post->current_version);
 });
 
@@ -426,10 +430,11 @@ it('moves the model to the highest available version when trying to fast-forward
     // Assert the model has current_version set to 1
     $this->assertSame(1, $post->current_version);
 
-    // Act: Fast-forward the last version
-    Rewind::fastForward($post);
+    // Act: Fast-forward the last version (already at max, so clamps to 1)
+    $version = Rewind::fastForward($post);
 
-    // Assert: The model should be at the latest version
+    // Assert: The model should be at the latest version and return it
+    expect($version)->toBe(1);
     $this->assertSame(1, $post->current_version);
 });
 
@@ -501,4 +506,10 @@ it('caches when a table has the current_version column', function () {
 
     // Act: Rewind the last version
     Rewind::rewind($post);
+});
+
+it('resolves RewindManagerInterface from the container', function () {
+    $manager = app(\AvocetShores\LaravelRewind\Contracts\RewindManagerInterface::class);
+
+    expect($manager)->toBeInstanceOf(\AvocetShores\LaravelRewind\Services\RewindManager::class);
 });

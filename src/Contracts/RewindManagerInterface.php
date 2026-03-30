@@ -16,7 +16,7 @@ interface RewindManagerInterface
      *
      * @throws LaravelRewindException
      */
-    public function rewind($model, int $steps = 1): int;
+    public function rewind(Model $model, int $steps = 1): int;
 
     /**
      * Fast-forward by a specified number of steps.
@@ -24,7 +24,7 @@ interface RewindManagerInterface
      *
      * @throws LaravelRewindException
      */
-    public function fastForward($model, int $steps = 1): int;
+    public function fastForward(Model $model, int $steps = 1): int;
 
     /**
      * Jump directly to a specified version.
@@ -34,7 +34,7 @@ interface RewindManagerInterface
      * @throws VersionDoesNotExistException
      * @throws CurrentVersionColumnMissingException
      */
-    public function goTo($model, int $targetVersion): int;
+    public function goTo(Model $model, int $targetVersion): int;
 
     /**
      * Replicates the given model and fills it with the attributes from the specified version.

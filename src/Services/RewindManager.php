@@ -23,7 +23,7 @@ class RewindManager implements RewindManagerInterface
      *
      * @throws LaravelRewindException
      */
-    public function rewind($model, int $steps = 1): int
+    public function rewind(Model $model, int $steps = 1): int
     {
         $this->assertRewindable($model);
 
@@ -44,7 +44,7 @@ class RewindManager implements RewindManagerInterface
      *
      * @throws LaravelRewindException
      */
-    public function fastForward($model, int $steps = 1): int
+    public function fastForward(Model $model, int $steps = 1): int
     {
         $this->assertRewindable($model);
 
@@ -67,7 +67,7 @@ class RewindManager implements RewindManagerInterface
      * @throws VersionDoesNotExistException
      * @throws CurrentVersionColumnMissingException
      */
-    public function goTo($model, int $targetVersion): int
+    public function goTo(Model $model, int $targetVersion): int
     {
         $this->assertRewindable($model);
         $this->eagerLoadVersions($model);

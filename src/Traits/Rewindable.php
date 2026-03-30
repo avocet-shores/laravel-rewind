@@ -129,6 +129,7 @@ trait Rewindable
             $this->versions()->create([
                 'model_id' => $this->getKey(),
                 'model_type' => $this->getMorphClass(),
+                config('rewind.user_id_column') => $this->getRewindTrackUser(),
                 'old_values' => [],
                 'new_values' => $this->getAttributes(),
                 'version' => 1,
