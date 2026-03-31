@@ -9,6 +9,7 @@ use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 interface RewindManagerInterface
 {
@@ -84,4 +85,18 @@ interface RewindManagerInterface
      * @throws \LogicException If called while already inside a batch
      */
     public function batch(callable $callback): string;
+
+    /**
+     * Get the attributes of a model at a specific point in time.
+     *
+     * @throws ModelNotRewindableException
+     * @throws VersionDoesNotExistException
+     */
+    public function versionAt(Model $model, Carbon $timestamp): array;
+
+    /**
+     * Execute a callback with versioning disabled.
+     * Model changes within the callback will not create version records.
+     */
+    public function withoutVersioning(callable $callback): mixed;
 }

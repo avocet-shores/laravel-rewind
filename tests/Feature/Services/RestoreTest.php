@@ -142,3 +142,28 @@ it('merges user-provided meta with restored_from_version', function () {
     expect($latestVersion->meta)->toHaveKey('restored_from_version', 1);
     expect($latestVersion->meta)->toHaveKey('reason', 'rollback requested');
 });
+
+it('creates a version even when restoring to the current state', function () {
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'V1', 'body' => 'Body']);
+    $post->update(['title' => 'V2']);
+    $post->update(['title' => 'V3']);
+
+    // Restore to v3 — the model already has v3's attributes in the DB
+    // Refresh to ensure in-memory attributes match the DB exactly
+    $post->refresh();
+    $newVersion = Rewind::restore($post, 3);
+
+    expect($newVersion)->toBe(4);
+    $post->refresh();
+    expect($post->current_version)->toBe(4);
+    expect($post->title)->toBe('V3');
+
+    $latestVersion = RewindVersion::where('model_id', $post->getKey())
+        ->where('model_type', $post->getMorphClass())
+        ->orderByDesc('version')
+        ->first();
+
+    expect($latestVersion->version)->toBe(4);
+    expect($latestVersion->event_type)->toBe(VersionEventType::Restored);
+    expect($latestVersion->meta)->toHaveKey('restored_from_version', 3);
+});

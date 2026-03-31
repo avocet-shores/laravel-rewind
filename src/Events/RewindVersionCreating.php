@@ -25,5 +25,6 @@ class RewindVersionCreating
         public ?VersionEventType $eventType = null,
         public array $meta = [],
         public ?string $batchUuid = null,
+        public bool $versionDrifted = false,
     ) {}
 }

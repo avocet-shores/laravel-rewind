@@ -27,6 +27,14 @@ trait Rewindable
     protected bool $disableRewindEvents = false;
 
     /**
+     * Set to true when a model change is saved without creating a version
+     * (e.g. via withoutVersioning or shouldVersion returning false).
+     * The next versioned save will reconstruct the previous version's state
+     * for old_values instead of trusting getOriginal().
+     */
+    protected bool $rewindVersionDrifted = false;
+
+    /**
      * Define any additional attributes to exclude from rewind's versions.
      * The default exclusion list includes timestamps, primary key, and current_version.
      */
@@ -90,18 +98,29 @@ trait Rewindable
             return;
         }
 
+        // If versioning is globally disabled (e.g. via Rewind::withoutVersioning()), skip
+        if (app(RewindContext::class)->isVersioningDisabled()) {
+            $this->rewindVersionDrifted = true;
+
+            return;
+        }
+
+        // Read force version flag early so it's consumed even if we return early
+        $context = app(RewindContext::class);
+        $forceVersion = $context->flushForceVersion();
+
         // Get the changed attributes. In the saved event:
         // - For creates: getDirty() may have values before syncOriginal() is called
         // - For updates: getChanges() has the values (getDirty is empty because syncChanges was called)
         $changedAttributes = $this->getChanges() ?: $this->getDirty();
 
-        // If there's no change, don't fire the event
-        if (empty($changedAttributes) && ! $this->wasRecentlyCreated && $this->exists) {
+        // If there's no change, don't fire the event (unless forced, e.g. by restore())
+        if (! $forceVersion && empty($changedAttributes) && ! $this->wasRecentlyCreated && $this->exists) {
             return;
         }
 
         // Filter out excluded attributes from changed attributes to see if there are any trackable changes
-        if ($this->exists && ! $this->wasRecentlyCreated) {
+        if (! $forceVersion && $this->exists && ! $this->wasRecentlyCreated) {
             $trackableChanges = array_diff_key(
                 $changedAttributes,
                 array_flip($this->getExcludedRewindableAttributes())
@@ -109,6 +128,24 @@ trait Rewindable
 
             // If only excluded attributes changed, don't fire the event
             if (empty($trackableChanges)) {
+                return;
+            }
+        }
+
+        // Allow models to conditionally skip versioning for updates.
+        // Skipped for forced versions (e.g. restore) and initial model creates.
+        // Note: wasRecentlyCreated can be stale on the same model instance, so we
+        // check for existing versions to distinguish genuine creates from stale state.
+        $isGenuineCreate = $this->wasRecentlyCreated && ! $this->versions()->exists(); // @phpstan-ignore method.notFound
+        if (! $forceVersion && $this->exists && ! $isGenuineCreate && ! empty($changedAttributes)) {
+            $trackableChanges ??= array_diff_key(
+                $changedAttributes,
+                array_flip($this->getExcludedRewindableAttributes())
+            );
+
+            if (! static::shouldVersion($trackableChanges)) {
+                $this->rewindVersionDrifted = true;
+
                 return;
             }
         }
@@ -123,7 +160,6 @@ trait Rewindable
         }
 
         // Read metadata and overrides from the context singleton
-        $context = app(RewindContext::class);
         $meta = $context->flush();
         $batchUuid = $context->getBatchUuid();
 
@@ -133,6 +169,9 @@ trait Rewindable
         }
 
         // Capture transient model state now so it survives serialization for queued listeners
+        $versionDrifted = $this->rewindVersionDrifted;
+        $this->rewindVersionDrifted = false;
+
         event(new RewindVersionCreating(
             model: $this,
             changes: $changedAttributes,
@@ -140,6 +179,7 @@ trait Rewindable
             eventType: $eventType,
             meta: $meta,
             batchUuid: $batchUuid,
+            versionDrifted: $versionDrifted,
         ));
     }
 
@@ -192,6 +232,17 @@ trait Rewindable
         }
 
         return optional(Auth::user())->getKey();
+    }
+
+    /**
+     * Determine whether this change should be versioned.
+     * Override in your model to conditionally skip versioning for certain changes.
+     *
+     * @param  array  $changedAttributes  The trackable attributes that changed (excluded attributes already filtered out)
+     */
+    public static function shouldVersion(array $changedAttributes): bool
+    {
+        return true;
     }
 
     public function disableRewindEvents(): void

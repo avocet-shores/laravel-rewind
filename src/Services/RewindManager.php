@@ -14,6 +14,7 @@ use AvocetShores\LaravelRewind\Traits\Rewindable;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class RewindManager implements RewindManagerInterface
@@ -29,6 +30,21 @@ class RewindManager implements RewindManagerInterface
     public function withMeta(array $meta): void
     {
         $this->rewindContext->set($meta);
+    }
+
+    /**
+     * Execute a callback with versioning disabled.
+     * Model changes within the callback will not create version records.
+     */
+    public function withoutVersioning(callable $callback): mixed
+    {
+        $this->rewindContext->disableVersioning();
+
+        try {
+            return $callback();
+        } finally {
+            $this->rewindContext->enableVersioning();
+        }
     }
 
     /**
@@ -87,6 +103,9 @@ class RewindManager implements RewindManagerInterface
 
         // Set event type override so the new version is marked as 'restored'
         $this->rewindContext->setEventTypeOverride(VersionEventType::Restored);
+
+        // Force version creation even if attributes haven't changed
+        $this->rewindContext->setForceVersion(true);
 
         // Fill and save — triggers normal Rewindable event hooks,
         // creating a new version through the standard pipeline
@@ -204,6 +223,28 @@ class RewindManager implements RewindManagerInterface
         $this->eagerLoadVersions($model);
 
         return $this->buildAttributesForVersion($model, $targetVersion);
+    }
+
+    /**
+     * Get the attributes of a model at a specific point in time.
+     *
+     * @throws LaravelRewindException
+     */
+    public function versionAt(Model $model, Carbon $timestamp): array
+    {
+        $this->assertRewindable($model);
+        $this->eagerLoadVersions($model);
+
+        $version = $model->versions // @phpstan-ignore property.notFound
+            ->where('created_at', '<=', $timestamp)
+            ->sortByDesc('version')
+            ->first();
+
+        if (! $version) {
+            throw new VersionDoesNotExistException('No version exists at or before the given timestamp.');
+        }
+
+        return $this->buildAttributesForVersion($model, $version->version);
     }
 
     /**

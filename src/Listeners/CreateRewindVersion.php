@@ -65,23 +65,45 @@ class CreateRewindVersion
             // If our current version is not the head, we need to rebuild the head record, then store all of its trackable attributes as old_values.
             // We then store the new values as the current model attributes, and set it to be a snapshot
             $isSnapshot = false;
+            $previousVersionState = null;
             if ($this->isNotHead($model, $nextVersion)) {
                 $isSnapshot = true;
                 $oldValues = $this->rebuildHeadVersion($model);
+            } elseif ($nextVersion > 1 && $event->versionDrifted) {
+                // The model was modified without versioning (e.g. via withoutVersioning
+                // or shouldVersion returning false) since the last version. Reconstruct
+                // the previous version's state so old_values reference the last *versioned*
+                // state rather than the stale getOriginal() values.
+                $previousVersionState = app(StateBuilder::class)->reconstructStateAtVersion(
+                    $model->getMorphClass(),
+                    $model->getKey(),
+                    $nextVersion - 1,
+                );
             }
 
             $attributesToTrack = $this->computeTrackableAttributes($model);
 
             foreach ($attributesToTrack as $attribute) {
-                // if we forced a rebuild, oldValues might already contain the old attribute
+                // Use the previous versioned state if available, otherwise fall back
+                // to getOriginal() (which is correct for v1 and isNotHead paths).
                 $originalValue = array_key_exists($attribute, $oldValues)
                     ? $oldValues[$attribute]
-                    : $model->getOriginal($attribute);
+                    : ($previousVersionState[$attribute] ?? $model->getOriginal($attribute));
+
+                // Detect attributes that changed without versioning (e.g., via
+                // withoutVersioning or shouldVersion returning false). These need
+                // to be included in the diff even if they aren't in the current
+                // save's dirty set, so backward traversal can recover them.
+                $driftedFromVersion = $previousVersionState !== null
+                    && array_key_exists($attribute, $previousVersionState)
+                    && $this->handleDateAttribute($previousVersionState[$attribute])
+                        !== $this->handleDateAttribute($model->getAttribute($attribute));
 
                 if (
                     ($wasRecentlyCreated && empty($originalValue))
                     || ! $model->exists
                     || array_key_exists($attribute, $dirty)
+                    || $driftedFromVersion
                 ) {
                     $oldValues[$attribute] = $this->handleDateAttribute($originalValue);
                     $newValues[$attribute] = $this->handleDateAttribute($model->getAttribute($attribute));

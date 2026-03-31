@@ -15,6 +15,10 @@ class RewindContext
 
     protected ?VersionEventType $eventTypeOverride = null;
 
+    protected bool $forceVersion = false;
+
+    protected int $versioningDisabledDepth = 0;
+
     public function set(array $meta): void
     {
         $this->meta = $meta;
@@ -58,6 +62,22 @@ class RewindContext
         $this->eventTypeOverride = $type;
     }
 
+    public function setForceVersion(bool $force): void
+    {
+        $this->forceVersion = $force;
+    }
+
+    /**
+     * Return and clear the force version flag.
+     */
+    public function flushForceVersion(): bool
+    {
+        $force = $this->forceVersion;
+        $this->forceVersion = false;
+
+        return $force;
+    }
+
     /**
      * Return and clear the event type override.
      */
@@ -67,5 +87,22 @@ class RewindContext
         $this->eventTypeOverride = null;
 
         return $override;
+    }
+
+    public function disableVersioning(): void
+    {
+        $this->versioningDisabledDepth++;
+    }
+
+    public function enableVersioning(): void
+    {
+        if ($this->versioningDisabledDepth > 0) {
+            $this->versioningDisabledDepth--;
+        }
+    }
+
+    public function isVersioningDisabled(): bool
+    {
+        return $this->versioningDisabledDepth > 0;
     }
 }

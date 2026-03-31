@@ -334,6 +334,48 @@ RewindVersion::forModel($post)
     ->get();
 ```
 
+### Skipping versioning
+
+You can suppress version creation for specific operations using the `withoutVersioning` method on the facade:
+
+```php
+Rewind::withoutVersioning(function () {
+    $post->update(['view_count' => $post->view_count + 1]);
+});
+// No version record created, but the model is updated in the database
+```
+
+The callback supports nesting and guarantees cleanup even if an exception is thrown.
+
+For per-model control, override the `shouldVersion` method on your model to conditionally skip versioning based on which attributes changed:
+
+```php
+class Post extends Model
+{
+    use Rewindable;
+
+    public static function shouldVersion(array $changedAttributes): bool
+    {
+        // Only create versions when content fields change
+        return array_key_exists('title', $changedAttributes)
+            || array_key_exists('body', $changedAttributes);
+    }
+}
+```
+
+The `$changedAttributes` array contains only trackable changes (excluded attributes are already filtered out). The method is not called for model creates or forced operations like `Rewind::restore()`.
+
+> **Note:** When versioning is skipped, the model's database row still changes. Rewind automatically detects these gaps and corrects the version chain on the next versioned save so that rewind/fast-forward navigation remains accurate. However, this correction only works on the **same model instance**. If you skip versioning on one instance, discard it, load a fresh instance from the database, and then make a versioned change, the version chain may reference the unversioned intermediate state. In practice this is rare — the most common pattern (`withoutVersioning { $model->update(...) }; $model->update(...)`) uses the same instance and is handled correctly.
+
+### Point-in-time lookup
+
+Retrieve a model's attributes as they existed at a specific point in time:
+
+```php
+$attributes = Rewind::versionAt($post, Carbon::parse('2025-01-15 14:30:00'));
+// Returns the full attribute array from the most recent version at or before that timestamp
+```
+
 ### Lock timeout handling
 
 When a cache lock cannot be acquired for version creation, the behavior is configurable via the `on_lock_timeout` 
