@@ -40,14 +40,18 @@ All notable changes to `laravel-rewind` will be documented in this file.
 
 ### Migration Notes
 
-This release adds two new nullable columns to the `rewind_versions` table: `event_type` (string) and `meta` (json). If you have already published the migration, you will need to add these columns manually:
+This release adds two new nullable columns to the `rewind_versions` table: `event_type` (string) and `meta` (json).
 
-```php
-Schema::table(config('rewind.table_name', 'rewind_versions'), function (Blueprint $table) {
-    $table->string('event_type')->nullable();
-    $table->json('meta')->nullable();
-});
+**New installations** get these columns automatically via the existing migration.
+
+**Existing installations** should publish and run the new upgrade migration:
+
+```bash
+php artisan vendor:publish --tag="laravel-rewind-migrations"
+php artisan migrate
 ```
+
+The upgrade migration is idempotent — it checks for existing columns before adding them, so it's safe to run even if you've already added the columns manually.
 
 **Full Changelog**: https://github.com/avocet-shores/laravel-rewind/compare/v0.7.4...v0.8.0
 
