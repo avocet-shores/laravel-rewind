@@ -59,7 +59,7 @@ class StateBuilder
      * independently. Returns an associative array keyed by model_id.
      *
      * @param  array<int|string, int>  $modelVersionMap  [model_id => target_version, ...]
-     * @return array<int|string, array>  [model_id => attributes, ...]
+     * @return array<int|string, array> [model_id => attributes, ...]
      */
     public function reconstructMultipleModelsAtVersions(array $modelVersionMap, string $modelType): array
     {

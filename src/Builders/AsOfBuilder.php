@@ -209,11 +209,11 @@ class AsOfBuilder
     protected function evaluateLike(mixed $actual, string $pattern): bool
     {
         // Convert SQL LIKE pattern to regex
-        $regex = '/^' . str_replace(
+        $regex = '/^'.str_replace(
             ['%', '_'],
             ['.*', '.'],
             preg_quote($pattern, '/'),
-        ) . '$/i';
+        ).'$/i';
 
         return (bool) preg_match($regex, (string) $actual);
     }

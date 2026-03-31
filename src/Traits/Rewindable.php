@@ -257,8 +257,6 @@ trait Rewindable
 
     /**
      * Query scope that reconstructs all matching models at a given point in time.
-     *
-     * @return AsOfBuilder
      */
     public function scopeAsOf(Builder $query, Carbon $timestamp): AsOfBuilder
     {
