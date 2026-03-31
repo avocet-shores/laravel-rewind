@@ -69,11 +69,11 @@ class CreateRewindVersion
             if ($this->isNotHead($model, $nextVersion)) {
                 $isSnapshot = true;
                 $oldValues = $this->rebuildHeadVersion($model);
-            } elseif ($nextVersion > 1 && $event->versionDrifted) {
-                // The model was modified without versioning (e.g. via withoutVersioning
-                // or shouldVersion returning false) since the last version. Reconstruct
-                // the previous version's state so old_values reference the last *versioned*
-                // state rather than the stale getOriginal() values.
+            } elseif ($nextVersion > 1) {
+                // Reconstruct the previous version's state so old_values always
+                // reference the last *versioned* state. This prevents corruption
+                // when unversioned changes occur between versions (e.g. via
+                // withoutVersioning or shouldVersion returning false).
                 $previousVersionState = app(StateBuilder::class)->reconstructStateAtVersion(
                     $model->getMorphClass(),
                     $model->getKey(),

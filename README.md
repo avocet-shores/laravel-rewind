@@ -365,8 +365,6 @@ class Post extends Model
 
 The `$changedAttributes` array contains only trackable changes (excluded attributes are already filtered out). The method is not called for model creates or forced operations like `Rewind::restore()`.
 
-> **Note:** When versioning is skipped, the model's database row still changes. Rewind automatically detects these gaps and corrects the version chain on the next versioned save so that rewind/fast-forward navigation remains accurate. However, this correction only works on the **same model instance**. If you skip versioning on one instance, discard it, load a fresh instance from the database, and then make a versioned change, the version chain may reference the unversioned intermediate state. In practice this is rare — the most common pattern (`withoutVersioning { $model->update(...) }; $model->update(...)`) uses the same instance and is handled correctly.
-
 ### Point-in-time lookup
 
 Retrieve a model's attributes as they existed at a specific point in time:

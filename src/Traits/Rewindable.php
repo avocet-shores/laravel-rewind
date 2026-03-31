@@ -27,14 +27,6 @@ trait Rewindable
     protected bool $disableRewindEvents = false;
 
     /**
-     * Set to true when a model change is saved without creating a version
-     * (e.g. via withoutVersioning or shouldVersion returning false).
-     * The next versioned save will reconstruct the previous version's state
-     * for old_values instead of trusting getOriginal().
-     */
-    protected bool $rewindVersionDrifted = false;
-
-    /**
      * Define any additional attributes to exclude from rewind's versions.
      * The default exclusion list includes timestamps, primary key, and current_version.
      */
@@ -100,8 +92,6 @@ trait Rewindable
 
         // If versioning is globally disabled (e.g. via Rewind::withoutVersioning()), skip
         if (app(RewindContext::class)->isVersioningDisabled()) {
-            $this->rewindVersionDrifted = true;
-
             return;
         }
 
@@ -144,8 +134,6 @@ trait Rewindable
             );
 
             if (! static::shouldVersion($trackableChanges)) {
-                $this->rewindVersionDrifted = true;
-
                 return;
             }
         }
@@ -169,9 +157,6 @@ trait Rewindable
         }
 
         // Capture transient model state now so it survives serialization for queued listeners
-        $versionDrifted = $this->rewindVersionDrifted;
-        $this->rewindVersionDrifted = false;
-
         event(new RewindVersionCreating(
             model: $this,
             changes: $changedAttributes,
@@ -179,7 +164,6 @@ trait Rewindable
             eventType: $eventType,
             meta: $meta,
             batchUuid: $batchUuid,
-            versionDrifted: $versionDrifted,
         ));
     }
 
