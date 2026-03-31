@@ -1,6 +1,6 @@
 {
     "name": "avocet-shores/laravel-rewind",
-    "description": "Laravel Rewind is a powerful, easy-to-use versioning package for your Eloquent models.",
+    "description": "Version control for Eloquent models with hybrid diff and snapshot storage.",
     "keywords": [
         "Avocet Shores",
         "laravel",
