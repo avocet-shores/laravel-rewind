@@ -236,6 +236,16 @@ class CreateRewindVersion
             return;
         }
 
+        $snapshotInterval = (int) config('rewind.snapshot_interval', 10);
+
+        $versionCount = RewindVersion::where('model_type', $model->getMorphClass())
+            ->where('model_id', $model->getKey())
+            ->count();
+
+        if ($versionCount <= $maxVersions + $snapshotInterval) {
+            return;
+        }
+
         app(VersionPruner::class)->pruneForModel($model, (int) $maxVersions);
     }
 }

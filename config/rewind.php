@@ -125,8 +125,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | If set, the package will automatically prune old versions after creating
-    | a new one, keeping at most this many versions per model instance. This
-    | can be overridden per-model by defining a $maxRewindVersions property.
+    | a new one, keeping at most this many versions per model instance. Pruning
+    | is batched using snapshot_interval as a buffer — versions accumulate to
+    | max_versions + snapshot_interval before pruning back to max_versions.
+    | This can be overridden per-model by defining a maxRewindVersions() method.
     | Set to null to disable automatic pruning.
     |
     */
