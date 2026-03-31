@@ -114,9 +114,10 @@ trait Rewindable
         }
 
         // Determine event type if not explicitly provided.
-        // Note: we don't use wasRecentlyCreated here because it persists on the
-        // model instance, causing subsequent updates to also appear as "created".
-        // The listener will determine Created vs Updated using the version number.
+        // We default to null here rather than checking wasRecentlyCreated, because
+        // wasRecentlyCreated stays true on the model instance after the initial create,
+        // causing subsequent updates on the same object to also appear as "created".
+        // The listener determines Created vs Updated using the version number instead.
         if ($eventType === null) {
             $eventType = VersionEventType::Updated;
         }

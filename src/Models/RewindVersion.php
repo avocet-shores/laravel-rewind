@@ -16,7 +16,7 @@ use Illuminate\Support\Carbon;
  * @property array $new_values
  * @property int $version
  * @property bool $is_snapshot
- * @property string|null $event_type
+ * @property VersionEventType|null $event_type
  * @property array|null $meta
  * @property Carbon $created_at
  * @property Carbon $updated_at
@@ -46,6 +46,7 @@ class RewindVersion extends Model
         'version' => 'integer',
         'is_snapshot' => 'boolean',
         'meta' => 'array',
+        'event_type' => VersionEventType::class,
     ];
 
     /**
@@ -92,7 +93,7 @@ class RewindVersion extends Model
      */
     public function scopeOfType(Builder $query, VersionEventType $type): Builder
     {
-        return $query->where('event_type', $type->value);
+        return $query->where('event_type', $type);
     }
 
     /**
@@ -100,6 +101,10 @@ class RewindVersion extends Model
      */
     public function scopeBetweenDates(Builder $query, Carbon $from, Carbon $to): Builder
     {
+        if ($from->greaterThan($to)) {
+            [$from, $to] = [$to, $from];
+        }
+
         return $query->whereBetween('created_at', [$from, $to]);
     }
 

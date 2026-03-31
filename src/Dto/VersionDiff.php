@@ -17,6 +17,10 @@ class VersionDiff
 
     /**
      * Build a VersionDiff by comparing two attribute arrays.
+     *
+     * Uses strict comparison (!==) so type differences (e.g. "1" vs 1)
+     * are reported as changes. This is intentional — values that pass
+     * through JSON encode/decode cycles may change type.
      */
     public static function fromAttributes(array $from, array $to): self
     {

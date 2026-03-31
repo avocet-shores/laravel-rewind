@@ -130,7 +130,7 @@ class CreateRewindVersion
                     'old_values' => $oldValues ?: null,
                     'new_values' => $newValues ?: null,
                     'is_snapshot' => $isSnapshot,
-                    'event_type' => $eventType?->value,
+                    'event_type' => $eventType,
                     'meta' => $meta ?: null,
                 ]);
 

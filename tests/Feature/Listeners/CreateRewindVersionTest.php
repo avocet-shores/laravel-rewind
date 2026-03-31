@@ -378,7 +378,7 @@ it('sets event_type to created when a model is created', function () {
     ]);
 
     $version = $post->versions()->where('version', 1)->first();
-    expect($version->event_type)->toBe(VersionEventType::Created->value);
+    expect($version->event_type)->toBe(VersionEventType::Created);
 });
 
 it('sets event_type to updated when a model is updated', function () {
@@ -391,7 +391,7 @@ it('sets event_type to updated when a model is updated', function () {
     $post->update(['title' => 'Updated Title']);
 
     $version = $post->versions()->where('version', 2)->first();
-    expect($version->event_type)->toBe(VersionEventType::Updated->value);
+    expect($version->event_type)->toBe(VersionEventType::Updated);
 });
 
 it('sets event_type to deleted when a model is soft deleted', function () {
@@ -406,5 +406,5 @@ it('sets event_type to deleted when a model is soft deleted', function () {
         ->orderByDesc('version')
         ->first();
 
-    expect($version->event_type)->toBe(VersionEventType::Deleted->value);
+    expect($version->event_type)->toBe(VersionEventType::Deleted);
 });

@@ -2,6 +2,9 @@
 
 namespace AvocetShores\LaravelRewind\Services;
 
+/**
+ * @internal Not part of the public API. Subject to change without notice.
+ */
 class RewindContext
 {
     protected array $meta = [];
