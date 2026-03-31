@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property bool $is_snapshot
  * @property VersionEventType|null $event_type
  * @property array|null $meta
+ * @property array|null $state_transitions
  * @property string|null $batch_uuid
  * @property Carbon $created_at
  * @property Carbon $updated_at
@@ -36,6 +37,7 @@ class RewindVersion extends Model
         'is_snapshot',
         'event_type',
         'meta',
+        'state_transitions',
         'batch_uuid',
     ];
 
@@ -48,6 +50,7 @@ class RewindVersion extends Model
         'version' => 'integer',
         'is_snapshot' => 'boolean',
         'meta' => 'array',
+        'state_transitions' => 'array',
         'event_type' => VersionEventType::class,
         'batch_uuid' => 'string',
     ];
@@ -60,7 +63,7 @@ class RewindVersion extends Model
         // Merge required columns so child classes can't accidentally drop them
         $this->fillable = array_unique(array_merge($this->fillable, [
             'model_type', 'model_id', 'old_values', 'new_values',
-            'version', 'is_snapshot', 'event_type', 'meta', 'batch_uuid',
+            'version', 'is_snapshot', 'event_type', 'meta', 'state_transitions', 'batch_uuid',
         ]));
 
         if (! isset($this->connection)) {
@@ -165,6 +168,49 @@ class RewindVersion extends Model
     public function scopeInBatch(Builder $query, string $batchUuid): Builder
     {
         return $query->where('batch_uuid', $batchUuid);
+    }
+
+    /**
+     * Scope to versions where a specific state transition occurred.
+     * Pass null for $from or $to to match any value (wildcard).
+     */
+    public function scopeWhereStateTransition(Builder $query, string $field, mixed $from = null, mixed $to = null): Builder
+    {
+        $query->whereNotNull("state_transitions->{$field}");
+
+        if ($from !== null) {
+            $query->where("state_transitions->{$field}->from", $from);
+        }
+
+        if ($to !== null) {
+            $query->where("state_transitions->{$field}->to", $to);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Scope to versions where a field transitioned FROM a specific state.
+     */
+    public function scopeWhereStateWas(Builder $query, string $field, mixed $state): Builder
+    {
+        return $query->where("state_transitions->{$field}->from", $state);
+    }
+
+    /**
+     * Scope to versions where a field transitioned TO a specific state.
+     */
+    public function scopeWhereStateBecame(Builder $query, string $field, mixed $state): Builder
+    {
+        return $query->where("state_transitions->{$field}->to", $state);
+    }
+
+    /**
+     * Scope to versions where a specific field had any state transition.
+     */
+    public function scopeWhereStateChanged(Builder $query, string $field): Builder
+    {
+        return $query->whereNotNull("state_transitions->{$field}");
     }
 
     /**
