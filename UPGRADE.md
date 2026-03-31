@@ -1,4 +1,4 @@
-# Upgrading from 0.x to 1.0
+# Upgrading to 0.9.0
 
 ## Requirements
 
@@ -7,18 +7,18 @@
 
 ## Migration
 
-A new migration adds the `batch_uuid` column to the versions table. Publish and run it:
+A new migration adds the `batch_uuid` column to the versions table:
 
 ```bash
 php artisan vendor:publish --tag=laravel-rewind-migrations
 php artisan migrate
 ```
 
-If you previously published migrations, the new migration file will be added alongside your existing ones. The migration safely checks for column existence before adding.
+The migration checks for column existence before adding, so it's safe to run alongside previously published migrations.
 
 ## New Config Keys
 
-Add these to your published `config/rewind.php` if you want to use them (both are optional):
+Add to your published `config/rewind.php` if needed (optional):
 
 ```php
 // Custom version model (must extend RewindVersion)
@@ -32,14 +32,11 @@ Add these to your published `config/rewind.php` if you want to use them (both ar
 Group related changes under a shared identifier:
 
 ```php
-use AvocetShores\LaravelRewind\Facades\Rewind;
-
 $batchUuid = Rewind::batch(function () {
     $order->update(['status' => 'shipped']);
     $item->update(['shipped_at' => now()]);
 });
 
-// Query all versions in the batch
 $versions = RewindVersion::inBatch($batchUuid)->get();
 ```
 
@@ -50,7 +47,6 @@ Create a new version from a previous version's state instead of moving the point
 ```php
 // Post is at v5. Restore to v2's state as a new v6.
 Rewind::restore($post, 2);
-// $post->current_version === 6
 // v6 has event_type 'restored' and meta['restored_from_version'] = 2
 ```
 
@@ -61,7 +57,6 @@ This differs from `goTo()` which moves the pointer without creating a version re
 Extend `RewindVersion` with custom columns, scopes, or accessors:
 
 ```php
-// app/Models/CustomRewindVersion.php
 class CustomRewindVersion extends \AvocetShores\LaravelRewind\Models\RewindVersion
 {
     // Add custom behavior
@@ -73,24 +68,8 @@ class CustomRewindVersion extends \AvocetShores\LaravelRewind\Models\RewindVersi
 
 ### New Enum Case
 
-`VersionEventType::Restored` is added for versions created via `Rewind::restore()`.
+`VersionEventType::Restored` for versions created via `Rewind::restore()`.
 
 ## Breaking Changes
 
-None. All existing public API methods, config keys, events, and exceptions remain unchanged.
-
-## API Stability
-
-Starting with v1.0.0, the following are stable public API per semver:
-
-- `Rewind` facade methods (`rewind`, `fastForward`, `goTo`, `cloneModel`, `getVersionAttributes`, `diff`, `withMeta`, `batch`, `restore`, `versionAt`, `amendCurrentVersion`)
-- `RewindManagerInterface` contract
-- `Rewindable` trait public methods
-- `RewindVersion` model (public methods, relationships, scopes)
-- All events (`RewindVersionCreating`, `RewindVersionCreated`, `RewindVersionLockTimeout`)
-- All exceptions
-- `VersionDiff`, `PruneResult` DTOs
-- `VersionEventType` enum
-- All config keys in `config/rewind.php`
-
-Classes marked `@internal` (`StateBuilder`, `ApproachEngine`, `SchemaHelper`, `ApproachPlan`, `ApproachMethod`, `RewindContext`) may change without a major version bump.
+None.
