@@ -309,3 +309,170 @@ it('supports LIKE operator in where clause', function () {
 
     expect($results)->toHaveCount(2);
 });
+
+it('LIKE operator handles special regex characters in patterns', function () {
+    Post::create(['user_id' => $this->user->id, 'title' => 'Price: $10.00', 'body' => 'Body']);
+    Post::create(['user_id' => $this->user->id, 'title' => 'Price: $20.00', 'body' => 'Body']);
+    Post::create(['user_id' => $this->user->id, 'title' => 'No price here', 'body' => 'Body']);
+
+    $post = Post::first();
+    RewindVersion::where('model_type', $post->getMorphClass())
+        ->where('version', 1)
+        ->update(['created_at' => now()->subHours(3)]);
+
+    $results = Post::asOf(now()->subHours(2))->where('title', 'like', 'Price: $%')->get();
+
+    expect($results)->toHaveCount(2);
+});
+
+it('LIKE operator supports underscore as single-character wildcard', function () {
+    Post::create(['user_id' => $this->user->id, 'title' => 'Cat', 'body' => 'Body']);
+    Post::create(['user_id' => $this->user->id, 'title' => 'Car', 'body' => 'Body']);
+    Post::create(['user_id' => $this->user->id, 'title' => 'Card', 'body' => 'Body']);
+
+    $post = Post::first();
+    RewindVersion::where('model_type', $post->getMorphClass())
+        ->where('version', 1)
+        ->update(['created_at' => now()->subHours(3)]);
+
+    $results = Post::asOf(now()->subHours(2))->where('title', 'like', 'Ca_')->get();
+
+    expect($results)->toHaveCount(2);
+    expect($results->pluck('title')->sort()->values()->all())->toBe(['Car', 'Cat']);
+});
+
+it('includes restored soft-deleted models at the timestamp', function () {
+    $template = Template::create(['name' => 'Template 1', 'content' => 'Content']);
+
+    // Backdate create version
+    RewindVersion::where('model_id', $template->getKey())
+        ->where('model_type', $template->getMorphClass())
+        ->where('version', 1)
+        ->update(['created_at' => now()->subHours(6)]);
+
+    // Soft delete the template
+    $template->delete();
+    RewindVersion::where('model_id', $template->getKey())
+        ->where('model_type', $template->getMorphClass())
+        ->where('version', 2)
+        ->update(['created_at' => now()->subHours(4)]);
+
+    // Restore the template
+    $template->restore();
+    RewindVersion::where('model_id', $template->getKey())
+        ->where('model_type', $template->getMorphClass())
+        ->where('version', 3)
+        ->update(['created_at' => now()->subHours(2)]);
+
+    // Query after restore — model should be included
+    $results = Template::asOf(now()->subHour())->get();
+    expect($results)->toHaveCount(1);
+    expect($results->first()->name)->toBe('Template 1');
+
+    // Query between delete and restore — model should be excluded
+    $results = Template::asOf(now()->subHours(3))->get();
+    expect($results)->toHaveCount(0);
+});
+
+it('applies multiple where clauses as AND logic', function () {
+    Post::create(['user_id' => $this->user->id, 'title' => 'Alpha', 'body' => 'match']);
+    Post::create(['user_id' => $this->user->id, 'title' => 'Beta', 'body' => 'match']);
+    Post::create(['user_id' => $this->user->id, 'title' => 'Alpha', 'body' => 'no-match']);
+
+    $post = Post::first();
+    RewindVersion::where('model_type', $post->getMorphClass())
+        ->where('version', 1)
+        ->update(['created_at' => now()->subHours(3)]);
+
+    $results = Post::asOf(now()->subHours(2))
+        ->where('title', 'Alpha')
+        ->where('body', 'match')
+        ->get();
+
+    expect($results)->toHaveCount(1);
+    expect($results->first()->title)->toBe('Alpha');
+    expect($results->first()->body)->toBe('match');
+});
+
+it('handles null attribute comparisons', function () {
+    Post::create(['user_id' => $this->user->id, 'title' => 'Has Title', 'body' => null]);
+    Post::create(['user_id' => $this->user->id, 'title' => 'Also Has Title', 'body' => 'Has Body']);
+
+    $post = Post::first();
+    RewindVersion::where('model_type', $post->getMorphClass())
+        ->where('version', 1)
+        ->update(['created_at' => now()->subHours(3)]);
+
+    $results = Post::asOf(now()->subHours(2))->where('body', null)->get();
+
+    expect($results)->toHaveCount(1);
+    expect($results->first()->title)->toBe('Has Title');
+});
+
+it('reconstructs correctly after versions have been pruned', function () {
+    config()->set('rewind.snapshot_interval', 3);
+
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'V1', 'body' => 'Body']);
+    RewindVersion::where('model_id', $post->getKey())
+        ->where('model_type', $post->getMorphClass())
+        ->where('version', 1)
+        ->update(['created_at' => now()->subHours(10)]);
+
+    $post->update(['title' => 'V2']);
+    RewindVersion::where('model_id', $post->getKey())
+        ->where('model_type', $post->getMorphClass())
+        ->where('version', 2)
+        ->update(['created_at' => now()->subHours(9)]);
+
+    $post->update(['title' => 'V3']); // snapshot at v3
+    RewindVersion::where('model_id', $post->getKey())
+        ->where('model_type', $post->getMorphClass())
+        ->where('version', 3)
+        ->update(['created_at' => now()->subHours(8)]);
+
+    $post->update(['title' => 'V4']);
+    RewindVersion::where('model_id', $post->getKey())
+        ->where('model_type', $post->getMorphClass())
+        ->where('version', 4)
+        ->update(['created_at' => now()->subHours(7)]);
+
+    // Simulate pruning v1 and v2 (keeping v3 snapshot onwards)
+    RewindVersion::where('model_id', $post->getKey())
+        ->where('model_type', $post->getMorphClass())
+        ->whereIn('version', [1, 2])
+        ->delete();
+
+    // Query at v4's time — reconstruction should work from v3 snapshot
+    $results = Post::asOf(now()->subHours(7))->get();
+
+    expect($results)->toHaveCount(1);
+    expect($results->first()->title)->toBe('V4');
+
+    // Query at v3's time — snapshot itself
+    $results = Post::asOf(now()->subHours(8))->get();
+    expect($results)->toHaveCount(1);
+    expect($results->first()->title)->toBe('V3');
+});
+
+it('returns first as null when no models match', function () {
+    Post::create(['user_id' => $this->user->id, 'title' => 'Post', 'body' => 'Body']);
+
+    $result = Post::asOf(now()->subYear())->first();
+
+    expect($result)->toBeNull();
+});
+
+it('count ignores limit', function () {
+    Post::create(['user_id' => $this->user->id, 'title' => 'Post 1', 'body' => 'Body']);
+    Post::create(['user_id' => $this->user->id, 'title' => 'Post 2', 'body' => 'Body']);
+    Post::create(['user_id' => $this->user->id, 'title' => 'Post 3', 'body' => 'Body']);
+
+    $post = Post::first();
+    RewindVersion::where('model_type', $post->getMorphClass())
+        ->where('version', 1)
+        ->update(['created_at' => now()->subHours(3)]);
+
+    $count = Post::asOf(now()->subHours(2))->limit(1)->count();
+
+    expect($count)->toBe(3);
+});

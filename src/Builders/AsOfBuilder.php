@@ -89,24 +89,22 @@ class AsOfBuilder
             return new Collection;
         }
 
-        // 2. Load the target version records to check for deleted models
-        $targetVersionRecords = $versionModelClass::query()
+        // 2. Load the target version records to check for deleted models.
+        //    We only need event_type for each model's target version.
+        $deletedModelIds = $versionModelClass::query()
             ->where('model_type', $modelType)
-            ->where(function ($query) use ($targetVersions) {
-                foreach ($targetVersions as $modelId => $version) {
-                    $query->orWhere(function ($q) use ($modelId, $version) {
-                        $q->where('model_id', $modelId)->where('version', $version);
-                    });
-                }
-            })
+            ->whereIn('model_id', $targetVersions->keys())
+            ->where('event_type', VersionEventType::Deleted)
             ->get()
-            ->keyBy('model_id');
+            ->filter(function ($record) use ($targetVersions) {
+                return $record->version == $targetVersions[$record->model_id];
+            })
+            ->pluck('model_id')
+            ->all();
 
         // 3. Exclude models whose target version is a "deleted" event
-        $activeModelVersions = $targetVersions->filter(function ($version, $modelId) use ($targetVersionRecords) {
-            $record = $targetVersionRecords->get($modelId);
-
-            return $record && $record->event_type !== VersionEventType::Deleted;
+        $activeModelVersions = $targetVersions->reject(function ($version, $modelId) use ($deletedModelIds) {
+            return in_array($modelId, $deletedModelIds);
         });
 
         if ($activeModelVersions->isEmpty()) {
@@ -208,12 +206,20 @@ class AsOfBuilder
      */
     protected function evaluateLike(mixed $actual, string $pattern): bool
     {
-        // Convert SQL LIKE pattern to regex
-        $regex = '/^'.str_replace(
-            ['%', '_'],
-            ['.*', '.'],
-            preg_quote($pattern, '/'),
-        ).'$/i';
+        // Split the pattern on SQL wildcards, quote each literal segment,
+        // then rejoin with regex equivalents. This avoids preg_quote
+        // escaping the wildcard characters themselves.
+        $segments = preg_split('/(%|_)/', $pattern, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        $regex = '/^';
+        foreach ($segments as $segment) {
+            $regex .= match ($segment) {
+                '%' => '.*',
+                '_' => '.',
+                default => preg_quote($segment, '/'),
+            };
+        }
+        $regex .= '$/i';
 
         return (bool) preg_match($regex, (string) $actual);
     }
