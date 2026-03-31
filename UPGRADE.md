@@ -83,7 +83,7 @@ None. All existing public API methods, config keys, events, and exceptions remai
 
 Starting with v1.0.0, the following are stable public API per semver:
 
-- `Rewind` facade methods (`rewind`, `fastForward`, `goTo`, `cloneModel`, `getVersionAttributes`, `diff`, `withMeta`, `batch`, `restore`)
+- `Rewind` facade methods (`rewind`, `fastForward`, `goTo`, `cloneModel`, `getVersionAttributes`, `diff`, `withMeta`, `batch`, `restore`, `versionAt`, `withoutVersioning`)
 - `RewindManagerInterface` contract
 - `Rewindable` trait public methods
 - `RewindVersion` model (public methods, relationships, scopes)

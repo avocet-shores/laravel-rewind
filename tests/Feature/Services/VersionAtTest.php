@@ -88,6 +88,22 @@ it('works across snapshots and diffs', function () {
     expect($attributes['title'])->toBe('V2');
 });
 
+it('returns the highest version when multiple versions share the same timestamp', function () {
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'V1', 'body' => 'Body']);
+    $post->update(['title' => 'V2']);
+    $post->update(['title' => 'V3']);
+
+    // Force all versions to the same timestamp
+    $sameTime = now()->subHour();
+    RewindVersion::where('model_id', $post->getKey())
+        ->where('model_type', $post->getMorphClass())
+        ->update(['created_at' => $sameTime]);
+
+    $attributes = Rewind::versionAt($post, $sameTime);
+
+    expect($attributes['title'])->toBe('V3');
+});
+
 it('returns the latest version when timestamp is in the future', function () {
     $post = Post::create(['user_id' => $this->user->id, 'title' => 'V1', 'body' => 'Body']);
     $post->update(['title' => 'V2']);

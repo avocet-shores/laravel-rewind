@@ -22,7 +22,13 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table(config('rewind.table_name', 'rewind_versions'), function (Blueprint $table) {
+        $tableName = config('rewind.table_name', 'rewind_versions');
+
+        if (! Schema::hasColumn($tableName, 'batch_uuid')) {
+            return;
+        }
+
+        Schema::table($tableName, function (Blueprint $table) {
             $table->dropIndex(['batch_uuid']);
             $table->dropColumn('batch_uuid');
         });

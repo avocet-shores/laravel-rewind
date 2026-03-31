@@ -90,13 +90,14 @@ trait Rewindable
             return;
         }
 
+        $context = app(RewindContext::class);
+
         // If versioning is globally disabled (e.g. via Rewind::withoutVersioning()), skip
-        if (app(RewindContext::class)->isVersioningDisabled()) {
+        if ($context->isVersioningDisabled()) {
             return;
         }
 
         // Read force version flag early so it's consumed even if we return early
-        $context = app(RewindContext::class);
         $forceVersion = $context->flushForceVersion();
 
         // Get the changed attributes. In the saved event:

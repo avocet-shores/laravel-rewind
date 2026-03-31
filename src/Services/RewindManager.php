@@ -8,6 +8,7 @@ use AvocetShores\LaravelRewind\Enums\VersionEventType;
 use AvocetShores\LaravelRewind\Exceptions\CurrentVersionColumnMissingException;
 use AvocetShores\LaravelRewind\Exceptions\LaravelRewindException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
+use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
 use AvocetShores\LaravelRewind\Support\SchemaHelper;
 use AvocetShores\LaravelRewind\Traits\Rewindable;
@@ -233,11 +234,13 @@ class RewindManager implements RewindManagerInterface
     public function versionAt(Model $model, Carbon $timestamp): array
     {
         $this->assertRewindable($model);
-        $this->eagerLoadVersions($model);
 
-        $version = $model->versions // @phpstan-ignore property.notFound
+        $versionModelClass = RewindVersion::resolveVersionModelClass();
+        $version = $versionModelClass::query()
+            ->where('model_type', $model->getMorphClass())
+            ->where('model_id', $model->getKey())
             ->where('created_at', '<=', $timestamp)
-            ->sortByDesc('version')
+            ->orderByDesc('version')
             ->first();
 
         if (! $version) {

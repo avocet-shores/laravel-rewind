@@ -10,12 +10,18 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    RewindVersion::clearResolvedVersionModelClass();
+
     $this->user = User::create([
         'name' => 'Test User',
         'email' => 'test@example.com',
         'password' => 'password',
     ]);
     test()->actingAs($this->user);
+});
+
+afterEach(function () {
+    RewindVersion::clearResolvedVersionModelClass();
 });
 
 it('defaults to RewindVersion when version_model is not configured', function () {

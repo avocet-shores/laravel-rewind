@@ -60,17 +60,16 @@ class InitVersionsCommand extends Command
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 
-        // Collect IDs first to avoid pagination issues as records gain versions
-        $ids = $query->pluck((new $modelClass)->getKeyName());
+        $keyName = (new $modelClass)->getKeyName();
 
-        $ids->chunk($chunkSize)->each(function ($chunkIds) use ($modelClass, &$created, $bar) {
-            $models = $modelClass::whereIn((new $modelClass)->getKeyName(), $chunkIds)->get();
-            foreach ($models as $model) {
-                $model->initVersion();
-                $created++;
-                $bar->advance();
-            }
-        });
+        $modelClass::whereDoesntHave('versions')
+            ->chunkById($chunkSize, function ($models) use (&$created, $bar) {
+                foreach ($models as $model) {
+                    $model->initVersion();
+                    $created++;
+                    $bar->advance();
+                }
+            }, $keyName);
 
         $bar->finish();
         $this->newLine();

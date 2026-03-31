@@ -24,6 +24,8 @@ use Illuminate\Support\Carbon;
  */
 class RewindVersion extends Model
 {
+    protected static ?string $resolvedVersionModelClass = null;
+
     /**
      * The attributes that are mass assignable.
      */
@@ -82,10 +84,14 @@ class RewindVersion extends Model
      */
     public static function resolveVersionModelClass(): string
     {
+        if (static::$resolvedVersionModelClass !== null) {
+            return static::$resolvedVersionModelClass;
+        }
+
         $model = config('rewind.version_model');
 
         if ($model === null) {
-            return static::class;
+            return static::$resolvedVersionModelClass = static::class;
         }
 
         if (! is_subclass_of($model, self::class)) {
@@ -94,7 +100,16 @@ class RewindVersion extends Model
             );
         }
 
-        return $model;
+        return static::$resolvedVersionModelClass = $model;
+    }
+
+    /**
+     * Clear the cached resolved version model class.
+     * Useful in tests when changing the config between test cases.
+     */
+    public static function clearResolvedVersionModelClass(): void
+    {
+        static::$resolvedVersionModelClass = null;
     }
 
     /**
