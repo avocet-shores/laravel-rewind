@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property bool $is_snapshot
  * @property VersionEventType|null $event_type
  * @property array|null $meta
+ * @property string|null $batch_uuid
  * @property Carbon $created_at
  * @property Carbon $updated_at
  */
@@ -35,6 +36,7 @@ class RewindVersion extends Model
         'is_snapshot',
         'event_type',
         'meta',
+        'batch_uuid',
     ];
 
     /**
@@ -47,6 +49,7 @@ class RewindVersion extends Model
         'is_snapshot' => 'boolean',
         'meta' => 'array',
         'event_type' => VersionEventType::class,
+        'batch_uuid' => 'string',
     ];
 
     /**
@@ -54,6 +57,12 @@ class RewindVersion extends Model
      */
     public function __construct(array $attributes = [])
     {
+        // Merge required columns so child classes can't accidentally drop them
+        $this->fillable = array_unique(array_merge($this->fillable, [
+            'model_type', 'model_id', 'old_values', 'new_values',
+            'version', 'is_snapshot', 'event_type', 'meta', 'batch_uuid',
+        ]));
+
         if (! isset($this->connection)) {
             $this->setConnection(config('rewind.database_connection'));
         }
@@ -69,6 +78,40 @@ class RewindVersion extends Model
         }
 
         parent::__construct($attributes);
+    }
+
+    /**
+     * Resolve the configured version model class.
+     * Falls back to RewindVersion if not configured.
+     *
+     * @throws \InvalidArgumentException If the configured class does not extend RewindVersion
+     */
+    public static function resolveVersionModelClass(): string
+    {
+        $model = config('rewind.version_model');
+
+        if ($model === null) {
+            return static::class;
+        }
+
+        if (! is_subclass_of($model, self::class)) {
+            throw new \InvalidArgumentException(
+                "The configured version model [{$model}] must extend ".self::class
+            );
+        }
+
+        return $model;
+    }
+
+    /**
+     * Create a new instance of the configured version model.
+     */
+    public static function newVersionModel(array $attributes = []): static
+    {
+        /** @var class-string<static> $class */
+        $class = static::resolveVersionModelClass();
+
+        return new $class($attributes);
     }
 
     /**
@@ -114,6 +157,14 @@ class RewindVersion extends Model
     public function scopeBetweenVersions(Builder $query, int $from, int $to): Builder
     {
         return $query->whereBetween('version', [$from, $to]);
+    }
+
+    /**
+     * Scope to versions belonging to a specific batch.
+     */
+    public function scopeInBatch(Builder $query, string $batchUuid): Builder
+    {
+        return $query->where('batch_uuid', $batchUuid);
     }
 
     /**

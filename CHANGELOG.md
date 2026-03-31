@@ -2,6 +2,32 @@
 
 All notable changes to `laravel-rewind` will be documented in this file.
 
+## v0.9.0 - Unreleased
+
+### New Features
+
+* **Batch versioning** -- `Rewind::batch(fn)` groups multiple model changes under a shared `batch_uuid`. Query with `RewindVersion::inBatch($uuid)`.
+* **Non-destructive restore** -- `Rewind::restore($model, $version)` creates a new version from a previous version's state. Tracks `VersionEventType::Restored` and stores `restored_from_version` in meta.
+* **Custom version model** -- Set `version_model` in config to extend `RewindVersion` with custom columns, scopes, or accessors.
+
+### Migration
+
+New `batch_uuid` column on the versions table. Publish and run:
+
+```bash
+php artisan vendor:publish --tag=laravel-rewind-migrations
+php artisan migrate
+```
+
+### New Config Keys
+
+```php
+// Custom version model (must extend RewindVersion)
+'version_model' => null,
+```
+
+Closes #54, #55, #56.
+
 ## v0.8.0 - 2026-03-30
 
 ### New Features

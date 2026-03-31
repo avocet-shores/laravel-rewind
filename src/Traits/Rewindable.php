@@ -90,18 +90,23 @@ trait Rewindable
             return;
         }
 
+        $context = app(RewindContext::class);
+
+        // Read force version flag early so it's consumed even if we return early
+        $forceVersion = $context->flushForceVersion();
+
         // Get the changed attributes. In the saved event:
         // - For creates: getDirty() may have values before syncOriginal() is called
         // - For updates: getChanges() has the values (getDirty is empty because syncChanges was called)
         $changedAttributes = $this->getChanges() ?: $this->getDirty();
 
-        // If there's no change, don't fire the event
-        if (empty($changedAttributes) && ! $this->wasRecentlyCreated && $this->exists) {
+        // If there's no change, don't fire the event (unless forced, e.g. by restore())
+        if (! $forceVersion && empty($changedAttributes) && ! $this->wasRecentlyCreated && $this->exists) {
             return;
         }
 
         // Filter out excluded attributes from changed attributes to see if there are any trackable changes
-        if ($this->exists && ! $this->wasRecentlyCreated) {
+        if (! $forceVersion && $this->exists && ! $this->wasRecentlyCreated) {
             $trackableChanges = array_diff_key(
                 $changedAttributes,
                 array_flip($this->getExcludedRewindableAttributes())
@@ -113,8 +118,17 @@ trait Rewindable
             }
         }
 
+        // If inside an amendCurrentVersion() callback, fold changes into
+        // the current version record instead of creating a new one.
+        // Forced versions (e.g. restore) always get a new version.
+        if (! $forceVersion && $this->exists && $context->isAmending()) {
+            $this->amendCurrentVersionRecord($changedAttributes);
+
+            return;
+        }
+
         // Determine event type if not explicitly provided.
-        // We default to null here rather than checking wasRecentlyCreated, because
+        // We default to null here than checking wasRecentlyCreated, because
         // wasRecentlyCreated stays true on the model instance after the initial create,
         // causing subsequent updates on the same object to also appear as "created".
         // The listener determines Created vs Updated using the version number instead.
@@ -122,8 +136,14 @@ trait Rewindable
             $eventType = VersionEventType::Updated;
         }
 
-        // Read metadata from the context singleton and clear it
-        $meta = app(RewindContext::class)->flush();
+        // Read metadata and overrides from the context singleton
+        $meta = $context->flush();
+        $batchUuid = $context->getBatchUuid();
+
+        $eventTypeOverride = $context->flushEventTypeOverride();
+        if ($eventTypeOverride !== null) {
+            $eventType = $eventTypeOverride;
+        }
 
         // Capture transient model state now so it survives serialization for queued listeners
         event(new RewindVersionCreating(
@@ -132,7 +152,53 @@ trait Rewindable
             wasRecentlyCreated: $this->wasRecentlyCreated,
             eventType: $eventType,
             meta: $meta,
+            batchUuid: $batchUuid,
         ));
+    }
+
+    /**
+     * Amend the current version record with changed attributes instead of
+     * creating a new version. Adds any newly changed attributes to both
+     * old_values and new_values on the existing version record.
+     */
+    protected function amendCurrentVersionRecord(array $changedAttributes): void
+    {
+        $currentVersion = $this->versions()->orderByDesc('version')->first(); // @phpstan-ignore method.notFound
+
+        if (! $currentVersion) {
+            return;
+        }
+
+        $excludedAttributes = $this->getExcludedRewindableAttributes();
+        $oldValues = $currentVersion->old_values ?? [];
+        $newValues = $currentVersion->new_values ?? [];
+
+        foreach ($changedAttributes as $attribute => $value) {
+            if (in_array($attribute, $excludedAttributes)) {
+                continue;
+            }
+
+            // If this attribute isn't already in old_values, add the value
+            // from before this save (the original value from the model).
+            if (! array_key_exists($attribute, $oldValues)) {
+                $oldValues[$attribute] = $this->handleDateAttributeForAmend($this->getOriginal($attribute));
+            }
+
+            // Always update new_values to reflect the latest state
+            $newValues[$attribute] = $this->handleDateAttributeForAmend($this->getAttribute($attribute));
+        }
+
+        $currentVersion->update([
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+        ]);
+    }
+
+    protected function handleDateAttributeForAmend(mixed $value): mixed
+    {
+        return $value instanceof \DateTimeInterface
+            ? $value->format('Y-m-d H:i:s')
+            : $value;
     }
 
     /**
@@ -169,7 +235,7 @@ trait Rewindable
      */
     public function versions(): MorphMany
     {
-        return $this->morphMany(RewindVersion::class, 'model');
+        return $this->morphMany(RewindVersion::resolveVersionModelClass(), 'model');
     }
 
     /**

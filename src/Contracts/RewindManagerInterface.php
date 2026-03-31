@@ -9,6 +9,7 @@ use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 interface RewindManagerInterface
 {
@@ -61,7 +62,41 @@ interface RewindManagerInterface
     public function diff(Model $model, int $fromVersion, int $toVersion): VersionDiff;
 
     /**
+     * Non-destructive revert: creates a new version with the state from a previous version.
+     * Returns the new version number.
+     *
+     * @throws ModelNotRewindableException
+     * @throws VersionDoesNotExistException
+     * @throws CurrentVersionColumnMissingException
+     */
+    public function restore(Model $model, int $targetVersion): int;
+
+    /**
      * Set metadata to attach to the next version created.
      */
     public function withMeta(array $meta): void;
+
+    /**
+     * Group multiple model changes into a single logical batch.
+     * All versions created within the callback share a batch UUID.
+     *
+     * @return string The batch UUID
+     *
+     * @throws \LogicException If called while already inside a batch
+     */
+    public function batch(callable $callback): string;
+
+    /**
+     * Get the attributes of a model at a specific point in time.
+     *
+     * @throws ModelNotRewindableException
+     * @throws VersionDoesNotExistException
+     */
+    public function versionAt(Model $model, Carbon $timestamp): array;
+
+    /**
+     * Execute a callback where model changes amend the current version
+     * instead of creating new version records.
+     */
+    public function amendCurrentVersion(callable $callback): mixed;
 }

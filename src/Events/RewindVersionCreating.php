@@ -24,5 +24,6 @@ class RewindVersionCreating
         public bool $wasRecentlyCreated = false,
         public ?VersionEventType $eventType = null,
         public array $meta = [],
+        public ?string $batchUuid = null,
     ) {}
 }

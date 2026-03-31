@@ -334,6 +334,33 @@ RewindVersion::forModel($post)
     ->get();
 ```
 
+### Amending the current version
+
+Sometimes you want to save a change without creating a new version. Maybe you're bumping a counter, syncing a denormalized field, or making a minor correction that doesn't warrant its own entry in the history.
+
+`amendCurrentVersion` updates the model in the database and folds the change into the current version record:
+
+```php
+Rewind::amendCurrentVersion(function () {
+    $post->update(['view_count' => $post->view_count + 1]);
+});
+```
+
+No new version row is created. The changed attributes are added to the current version's `old_values` and `new_values`, so `goTo()`, `rewind()`, and `diff()` continue to work as expected.
+
+The callback supports nesting and guarantees cleanup even if an exception is thrown.
+
+> **Tip:** If an attribute should _never_ appear in version history, use `excludedFromVersioning()` instead. `amendCurrentVersion` is for attributes you still want tracked, just not as a separate version.
+
+### Point-in-time lookup
+
+Retrieve a model's attributes as they existed at a specific point in time:
+
+```php
+$attributes = Rewind::versionAt($post, Carbon::parse('2025-01-15 14:30:00'));
+// Returns the full attribute array from the most recent version at or before that timestamp
+```
+
 ### Lock timeout handling
 
 When a cache lock cannot be acquired for version creation, the behavior is configurable via the `on_lock_timeout` 

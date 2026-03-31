@@ -4,15 +4,19 @@ namespace AvocetShores\LaravelRewind\Services;
 
 use AvocetShores\LaravelRewind\Contracts\RewindManagerInterface;
 use AvocetShores\LaravelRewind\Dto\VersionDiff;
+use AvocetShores\LaravelRewind\Enums\VersionEventType;
 use AvocetShores\LaravelRewind\Exceptions\CurrentVersionColumnMissingException;
 use AvocetShores\LaravelRewind\Exceptions\LaravelRewindException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
 use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
+use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Support\SchemaHelper;
 use AvocetShores\LaravelRewind\Traits\Rewindable;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class RewindManager implements RewindManagerInterface
 {
@@ -27,6 +31,89 @@ class RewindManager implements RewindManagerInterface
     public function withMeta(array $meta): void
     {
         $this->rewindContext->set($meta);
+    }
+
+    /**
+     * Execute a callback where model changes amend the current version
+     * instead of creating new version records.
+     */
+    public function amendCurrentVersion(callable $callback): mixed
+    {
+        $this->rewindContext->enterAmendMode();
+
+        try {
+            return $callback();
+        } finally {
+            $this->rewindContext->exitAmendMode();
+        }
+    }
+
+    /**
+     * Group multiple model changes into a single logical batch.
+     * All versions created within the callback share a batch UUID.
+     *
+     * @return string The batch UUID
+     *
+     * @throws \LogicException If called while already inside a batch
+     */
+    public function batch(callable $callback): string
+    {
+        if ($this->rewindContext->getBatchUuid() !== null) {
+            throw new \LogicException('Cannot nest Rewind::batch() calls.');
+        }
+
+        $uuid = (string) Str::uuid();
+        $this->rewindContext->setBatchUuid($uuid);
+
+        try {
+            $callback();
+        } finally {
+            $this->rewindContext->clearBatch();
+        }
+
+        return $uuid;
+    }
+
+    /**
+     * Non-destructive revert: creates a new version with the state from a previous version.
+     * The full audit trail is preserved — the revert itself is a versioned event.
+     *
+     * @throws ModelNotRewindableException
+     * @throws VersionDoesNotExistException
+     * @throws CurrentVersionColumnMissingException
+     */
+    public function restore(Model $model, int $targetVersion): int
+    {
+        $this->assertRewindable($model);
+        $this->eagerLoadVersions($model);
+
+        // Validate target version exists
+        $targetExists = $model->versions->where('version', $targetVersion)->first(); // @phpstan-ignore property.notFound
+        if (! $targetExists) {
+            throw new VersionDoesNotExistException('The specified version does not exist.');
+        }
+
+        // Get the attributes at the target version
+        $attributes = $this->buildAttributesForVersion($model, $targetVersion);
+
+        // Merge restored_from_version into any existing pending meta
+        $existingMeta = $this->rewindContext->get();
+        $this->rewindContext->set(array_merge($existingMeta, [
+            'restored_from_version' => $targetVersion,
+        ]));
+
+        // Set event type override so the new version is marked as 'restored'
+        $this->rewindContext->setEventTypeOverride(VersionEventType::Restored);
+
+        // Force version creation even if attributes haven't changed
+        $this->rewindContext->setForceVersion(true);
+
+        // Fill and save — triggers normal Rewindable event hooks,
+        // creating a new version through the standard pipeline
+        $model->fill($attributes);
+        $model->save();
+
+        return $model->current_version; // @phpstan-ignore property.notFound
     }
 
     /**
@@ -137,6 +224,30 @@ class RewindManager implements RewindManagerInterface
         $this->eagerLoadVersions($model);
 
         return $this->buildAttributesForVersion($model, $targetVersion);
+    }
+
+    /**
+     * Get the attributes of a model at a specific point in time.
+     *
+     * @throws LaravelRewindException
+     */
+    public function versionAt(Model $model, Carbon $timestamp): array
+    {
+        $this->assertRewindable($model);
+
+        $versionModelClass = RewindVersion::resolveVersionModelClass();
+        $version = $versionModelClass::query()
+            ->where('model_type', $model->getMorphClass())
+            ->where('model_id', $model->getKey())
+            ->where('created_at', '<=', $timestamp)
+            ->orderByDesc('version')
+            ->first();
+
+        if (! $version) {
+            throw new VersionDoesNotExistException('No version exists at or before the given timestamp.');
+        }
+
+        return $this->buildAttributesForVersion($model, $version->version);
     }
 
     /**

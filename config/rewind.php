@@ -18,6 +18,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Custom Version Model
+    |--------------------------------------------------------------------------
+    |
+    | If you need to extend the RewindVersion model with custom columns,
+    | relationships, or scopes, specify your model class here. Your model
+    | must extend AvocetShores\LaravelRewind\Models\RewindVersion.
+    |
+    */
+
+    'version_model' => null,
+
+    /*
+    |--------------------------------------------------------------------------
     | Rewind Versions Table User ID Column
     |--------------------------------------------------------------------------
     |

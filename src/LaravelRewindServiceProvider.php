@@ -3,6 +3,7 @@
 namespace AvocetShores\LaravelRewind;
 
 use AvocetShores\LaravelRewind\Commands\AddVersionTrackingColumnCommand;
+use AvocetShores\LaravelRewind\Commands\InitVersionsCommand;
 use AvocetShores\LaravelRewind\Commands\PruneVersionsCommand;
 use AvocetShores\LaravelRewind\Contracts\RewindManagerInterface;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
@@ -23,8 +24,10 @@ class LaravelRewindServiceProvider extends PackageServiceProvider
             ->hasConfigFile()
             ->hasMigration('create_rewind_versions_table')
             ->hasMigration('update_rewind_versions_add_event_type_and_meta')
+            ->hasMigration('update_rewind_versions_add_batch_uuid')
             ->hasCommand(AddVersionTrackingColumnCommand::class)
-            ->hasCommand(PruneVersionsCommand::class);
+            ->hasCommand(PruneVersionsCommand::class)
+            ->hasCommand(InitVersionsCommand::class);
     }
 
     public function registeringPackage(): void
