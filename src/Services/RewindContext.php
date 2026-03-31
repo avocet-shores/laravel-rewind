@@ -17,7 +17,7 @@ class RewindContext
 
     protected bool $forceVersion = false;
 
-    protected int $versioningDisabledDepth = 0;
+    protected int $amendDepth = 0;
 
     public function set(array $meta): void
     {
@@ -89,20 +89,20 @@ class RewindContext
         return $override;
     }
 
-    public function disableVersioning(): void
+    public function enterAmendMode(): void
     {
-        $this->versioningDisabledDepth++;
+        $this->amendDepth++;
     }
 
-    public function enableVersioning(): void
+    public function exitAmendMode(): void
     {
-        if ($this->versioningDisabledDepth > 0) {
-            $this->versioningDisabledDepth--;
+        if ($this->amendDepth > 0) {
+            $this->amendDepth--;
         }
     }
 
-    public function isVersioningDisabled(): bool
+    public function isAmending(): bool
     {
-        return $this->versioningDisabledDepth > 0;
+        return $this->amendDepth > 0;
     }
 }

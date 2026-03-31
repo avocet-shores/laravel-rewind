@@ -92,11 +92,6 @@ trait Rewindable
 
         $context = app(RewindContext::class);
 
-        // If versioning is globally disabled (e.g. via Rewind::withoutVersioning()), skip
-        if ($context->isVersioningDisabled()) {
-            return;
-        }
-
         // Read force version flag early so it's consumed even if we return early
         $forceVersion = $context->flushForceVersion();
 
@@ -123,24 +118,17 @@ trait Rewindable
             }
         }
 
-        // Allow models to conditionally skip versioning for updates.
-        // Skipped for forced versions (e.g. restore) and initial model creates.
-        // Note: wasRecentlyCreated can be stale on the same model instance, so we
-        // check for existing versions to distinguish genuine creates from stale state.
-        $isGenuineCreate = $this->wasRecentlyCreated && ! $this->versions()->exists(); // @phpstan-ignore method.notFound
-        if (! $forceVersion && $this->exists && ! $isGenuineCreate && ! empty($changedAttributes)) {
-            $trackableChanges ??= array_diff_key(
-                $changedAttributes,
-                array_flip($this->getExcludedRewindableAttributes())
-            );
+        // If inside an amendCurrentVersion() callback, fold changes into
+        // the current version record instead of creating a new one.
+        // Forced versions (e.g. restore) always get a new version.
+        if (! $forceVersion && $this->exists && $context->isAmending()) {
+            $this->amendCurrentVersionRecord($changedAttributes);
 
-            if (! static::shouldVersion($trackableChanges)) {
-                return;
-            }
+            return;
         }
 
         // Determine event type if not explicitly provided.
-        // We default to null here rather than checking wasRecentlyCreated, because
+        // We default to null here than checking wasRecentlyCreated, because
         // wasRecentlyCreated stays true on the model instance after the initial create,
         // causing subsequent updates on the same object to also appear as "created".
         // The listener determines Created vs Updated using the version number instead.
@@ -166,6 +154,51 @@ trait Rewindable
             meta: $meta,
             batchUuid: $batchUuid,
         ));
+    }
+
+    /**
+     * Amend the current version record with changed attributes instead of
+     * creating a new version. Adds any newly changed attributes to both
+     * old_values and new_values on the existing version record.
+     */
+    protected function amendCurrentVersionRecord(array $changedAttributes): void
+    {
+        $currentVersion = $this->versions()->orderByDesc('version')->first(); // @phpstan-ignore method.notFound
+
+        if (! $currentVersion) {
+            return;
+        }
+
+        $excludedAttributes = $this->getExcludedRewindableAttributes();
+        $oldValues = $currentVersion->old_values ?? [];
+        $newValues = $currentVersion->new_values ?? [];
+
+        foreach ($changedAttributes as $attribute => $value) {
+            if (in_array($attribute, $excludedAttributes)) {
+                continue;
+            }
+
+            // If this attribute isn't already in old_values, add the value
+            // from before this save (the original value from the model).
+            if (! array_key_exists($attribute, $oldValues)) {
+                $oldValues[$attribute] = $this->handleDateAttributeForAmend($this->getOriginal($attribute));
+            }
+
+            // Always update new_values to reflect the latest state
+            $newValues[$attribute] = $this->handleDateAttributeForAmend($this->getAttribute($attribute));
+        }
+
+        $currentVersion->update([
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+        ]);
+    }
+
+    protected function handleDateAttributeForAmend(mixed $value): mixed
+    {
+        return $value instanceof \DateTimeInterface
+            ? $value->format('Y-m-d H:i:s')
+            : $value;
     }
 
     /**
@@ -217,17 +250,6 @@ trait Rewindable
         }
 
         return optional(Auth::user())->getKey();
-    }
-
-    /**
-     * Determine whether this change should be versioned.
-     * Override in your model to conditionally skip versioning for certain changes.
-     *
-     * @param  array  $changedAttributes  The trackable attributes that changed (excluded attributes already filtered out)
-     */
-    public static function shouldVersion(array $changedAttributes): bool
-    {
-        return true;
     }
 
     public function disableRewindEvents(): void

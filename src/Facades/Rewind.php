@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array versionAt(Model $model, \Illuminate\Support\Carbon $timestamp) Get attributes at a point in time
  * @method static void withMeta(array $meta) Set metadata to attach to the next version created
  * @method static string batch(callable $callback) Group multiple changes into a single batch, returns batch UUID
- * @method static mixed withoutVersioning(callable $callback) Execute callback with versioning disabled
+ * @method static mixed amendCurrentVersion(callable $callback) Execute callback where changes amend the current version
  */
 class Rewind extends Facade
 {

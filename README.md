@@ -334,36 +334,23 @@ RewindVersion::forModel($post)
     ->get();
 ```
 
-### Skipping versioning
+### Amending the current version
 
-You can suppress version creation for specific operations using the `withoutVersioning` method on the facade:
+Sometimes you want to save a change without creating a new version. Maybe you're bumping a counter, syncing a denormalized field, or making a minor correction that doesn't warrant its own entry in the history.
+
+`amendCurrentVersion` updates the model in the database and folds the change into the current version record:
 
 ```php
-Rewind::withoutVersioning(function () {
+Rewind::amendCurrentVersion(function () {
     $post->update(['view_count' => $post->view_count + 1]);
 });
-// No version record created, but the model is updated in the database
 ```
+
+No new version row is created. The changed attributes are added to the current version's `old_values` and `new_values`, so `goTo()`, `rewind()`, and `diff()` continue to work as expected.
 
 The callback supports nesting and guarantees cleanup even if an exception is thrown.
 
-For per-model control, override the `shouldVersion` method on your model to conditionally skip versioning based on which attributes changed:
-
-```php
-class Post extends Model
-{
-    use Rewindable;
-
-    public static function shouldVersion(array $changedAttributes): bool
-    {
-        // Only create versions when content fields change
-        return array_key_exists('title', $changedAttributes)
-            || array_key_exists('body', $changedAttributes);
-    }
-}
-```
-
-The `$changedAttributes` array contains only trackable changes (excluded attributes are already filtered out). The method is not called for model creates or forced operations like `Rewind::restore()`.
+> **Tip:** If an attribute should _never_ appear in version history, use `excludedFromVersioning()` instead. `amendCurrentVersion` is for attributes you still want tracked, just not as a separate version.
 
 ### Point-in-time lookup
 

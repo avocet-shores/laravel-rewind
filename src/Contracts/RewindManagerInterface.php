@@ -95,8 +95,8 @@ interface RewindManagerInterface
     public function versionAt(Model $model, Carbon $timestamp): array;
 
     /**
-     * Execute a callback with versioning disabled.
-     * Model changes within the callback will not create version records.
+     * Execute a callback where model changes amend the current version
+     * instead of creating new version records.
      */
-    public function withoutVersioning(callable $callback): mixed;
+    public function amendCurrentVersion(callable $callback): mixed;
 }
