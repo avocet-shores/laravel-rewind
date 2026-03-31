@@ -5,6 +5,9 @@ namespace AvocetShores\LaravelRewind\Dto;
 use AvocetShores\LaravelRewind\Enums\ApproachMethod;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 
+/**
+ * @internal Not part of the public API. Subject to change without notice.
+ */
 class ApproachPlan
 {
     public ApproachMethod $method;

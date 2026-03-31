@@ -2,6 +2,7 @@
 
 namespace AvocetShores\LaravelRewind\Facades;
 
+use AvocetShores\LaravelRewind\Dto\VersionDiff;
 use AvocetShores\LaravelRewind\Services\RewindManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Facade;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static int goTo(Model $model, int $targetVersion) Jump to a specific version, returns version number
  * @method static Model cloneModel(Model $model, int $targetVersion) Clone a model at a specific version
  * @method static array getVersionAttributes(Model $model, int $targetVersion) Get the attributes of a model at a specific version
+ * @method static VersionDiff diff(Model $model, int $fromVersion, int $toVersion) Compare two versions and return a structured diff
+ * @method static void withMeta(array $meta) Set metadata to attach to the next version created
  */
 class Rewind extends Facade
 {

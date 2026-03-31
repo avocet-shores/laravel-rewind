@@ -2,6 +2,9 @@
 
 namespace AvocetShores\LaravelRewind\Enums;
 
+/**
+ * @internal Not part of the public API. Subject to change without notice.
+ */
 enum ApproachMethod: string
 {
     case None = 'none';

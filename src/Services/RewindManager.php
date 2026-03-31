@@ -3,6 +3,7 @@
 namespace AvocetShores\LaravelRewind\Services;
 
 use AvocetShores\LaravelRewind\Contracts\RewindManagerInterface;
+use AvocetShores\LaravelRewind\Dto\VersionDiff;
 use AvocetShores\LaravelRewind\Exceptions\CurrentVersionColumnMissingException;
 use AvocetShores\LaravelRewind\Exceptions\LaravelRewindException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
@@ -17,7 +18,16 @@ class RewindManager implements RewindManagerInterface
 {
     public function __construct(
         protected StateBuilder $stateBuilder,
+        protected RewindContext $rewindContext,
     ) {}
+
+    /**
+     * Set metadata to attach to the next version created.
+     */
+    public function withMeta(array $meta): void
+    {
+        $this->rewindContext->set($meta);
+    }
 
     /**
      * Rewind by a specified number of steps.
@@ -127,6 +137,19 @@ class RewindManager implements RewindManagerInterface
         $this->eagerLoadVersions($model);
 
         return $this->buildAttributesForVersion($model, $targetVersion);
+    }
+
+    /**
+     * Compare two versions and return a structured diff.
+     *
+     * @throws LaravelRewindException
+     */
+    public function diff(Model $model, int $fromVersion, int $toVersion): VersionDiff
+    {
+        $fromAttrs = $this->getVersionAttributes($model, $fromVersion);
+        $toAttrs = $this->getVersionAttributes($model, $toVersion);
+
+        return VersionDiff::fromAttributes($fromAttrs, $toAttrs);
     }
 
     /**

@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * @internal Not part of the public API. Subject to change without notice.
+ */
 class SchemaHelper
 {
     public static function modelHasCurrentVersionColumn(Model $model): bool

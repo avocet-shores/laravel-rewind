@@ -270,6 +270,77 @@ When a new version is created and the count exceeds this limit, the oldest versi
 
 You can also set a global default via the `max_versions` option in `config/rewind.php`. The per-model property takes precedence over the global config.
 
+### Compare what changed between two versions
+
+Sometimes you want to see exactly what's different between two points in a model's history. The `diff` method 
+reconstructs both versions and compares them, returning a `VersionDiff` object:
+
+```php
+$diff = Rewind::diff($post, 1, 5);
+
+$diff->changed;  // ['title' => ['old' => 'Draft', 'new' => 'Published']]
+$diff->added;    // Attributes only present in version 5
+$diff->removed;  // Attributes only present in version 1
+$diff->isEmpty(); // false
+```
+
+This works in either direction. Calling `diff($post, 5, 1)` simply swaps the old and new values.
+
+### Attach metadata to a version
+
+If you need to record *why* a change was made, you can attach arbitrary metadata before saving. Call `withMeta()` 
+and the next version created will include that data:
+
+```php
+Rewind::withMeta(['reason' => 'Bulk price update', 'ticket' => 'JIRA-123']);
+$product->update(['price' => 29.99]);
+```
+
+The version record will now have a `meta` field containing `{"reason": "Bulk price update", "ticket": "JIRA-123"}`. 
+Metadata is automatically cleared after the version is created, so it won't leak into subsequent saves.
+
+### Event type tracking
+
+Each version record automatically tracks the type of event that created it: `created`, `updated`, or `deleted`. 
+This makes it easy to filter your version history by what kind of change occurred:
+
+```php
+use AvocetShores\LaravelRewind\Enums\VersionEventType;
+
+$creates = $post->versions()->where('event_type', VersionEventType::Created->value)->get();
+```
+
+### Query your version history
+
+`RewindVersion` ships with a handful of query scopes to make filtering version records straightforward:
+
+```php
+use AvocetShores\LaravelRewind\Models\RewindVersion;
+use AvocetShores\LaravelRewind\Enums\VersionEventType;
+
+RewindVersion::forModel($post)->get();
+RewindVersion::byUser($userId)->get();
+RewindVersion::ofType(VersionEventType::Updated)->get();
+RewindVersion::betweenDates($startDate, $endDate)->get();
+RewindVersion::betweenVersions(1, 10)->get();
+```
+
+Scopes can be chained together to build more specific queries:
+
+```php
+RewindVersion::forModel($post)
+    ->ofType(VersionEventType::Updated)
+    ->byUser($userId)
+    ->get();
+```
+
+### Lock timeout handling
+
+When a cache lock cannot be acquired for version creation, the behavior is configurable via the `on_lock_timeout` 
+option in `config/rewind.php`. By default it logs an error silently. You can also set it to `"event"` to dispatch 
+a `RewindVersionLockTimeout` event for custom handling, or `"throw"` to throw a `LockTimeoutRewindException`. 
+The throw mode is especially useful with queued listeners, since it triggers Laravel's built-in retry mechanism.
+
 ## Testing
 
 ```bash

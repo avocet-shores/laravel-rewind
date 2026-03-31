@@ -8,6 +8,7 @@ use AvocetShores\LaravelRewind\Contracts\RewindManagerInterface;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Listeners\CreateRewindVersion;
 use AvocetShores\LaravelRewind\Listeners\CreateRewindVersionQueued;
+use AvocetShores\LaravelRewind\Services\RewindContext;
 use AvocetShores\LaravelRewind\Services\RewindManager;
 use Illuminate\Support\Facades\Event;
 use Spatie\LaravelPackageTools\Package;
@@ -29,6 +30,7 @@ class LaravelRewindServiceProvider extends PackageServiceProvider
     {
         $this->app->bind('laravel-rewind-manager', RewindManager::class);
         $this->app->bind(RewindManagerInterface::class, RewindManager::class);
+        $this->app->singleton(RewindContext::class);
     }
 
     public function bootingPackage(): void

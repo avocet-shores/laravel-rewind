@@ -2,6 +2,8 @@
 
 namespace AvocetShores\LaravelRewind\Models;
 
+use AvocetShores\LaravelRewind\Enums\VersionEventType;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -14,6 +16,8 @@ use Illuminate\Support\Carbon;
  * @property array $new_values
  * @property int $version
  * @property bool $is_snapshot
+ * @property string|null $event_type
+ * @property array|null $meta
  * @property Carbon $created_at
  * @property Carbon $updated_at
  */
@@ -29,6 +33,8 @@ class RewindVersion extends Model
         'new_values',
         'version',
         'is_snapshot',
+        'event_type',
+        'meta',
     ];
 
     /**
@@ -39,6 +45,7 @@ class RewindVersion extends Model
         'new_values' => 'array',
         'version' => 'integer',
         'is_snapshot' => 'boolean',
+        'meta' => 'array',
     ];
 
     /**
@@ -61,6 +68,47 @@ class RewindVersion extends Model
         }
 
         parent::__construct($attributes);
+    }
+
+    /**
+     * Scope to versions belonging to a specific model instance.
+     */
+    public function scopeForModel(Builder $query, Model $model): Builder
+    {
+        return $query->where('model_type', $model->getMorphClass())
+            ->where('model_id', $model->getKey());
+    }
+
+    /**
+     * Scope to versions created by a specific user.
+     */
+    public function scopeByUser(Builder $query, int|string $userId): Builder
+    {
+        return $query->where(config('rewind.user_id_column'), $userId);
+    }
+
+    /**
+     * Scope to versions of a specific event type.
+     */
+    public function scopeOfType(Builder $query, VersionEventType $type): Builder
+    {
+        return $query->where('event_type', $type->value);
+    }
+
+    /**
+     * Scope to versions created between two dates.
+     */
+    public function scopeBetweenDates(Builder $query, Carbon $from, Carbon $to): Builder
+    {
+        return $query->whereBetween('created_at', [$from, $to]);
+    }
+
+    /**
+     * Scope to versions within a version number range (inclusive).
+     */
+    public function scopeBetweenVersions(Builder $query, int $from, int $to): Builder
+    {
+        return $query->whereBetween('version', [$from, $to]);
     }
 
     /**

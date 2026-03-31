@@ -6,6 +6,9 @@ use AvocetShores\LaravelRewind\Enums\ApproachMethod;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use Illuminate\Support\Collection;
 
+/**
+ * @internal Not part of the public API. Subject to change without notice.
+ */
 class StateBuilder
 {
     public function __construct(

@@ -6,6 +6,9 @@ use AvocetShores\LaravelRewind\Dto\ApproachPlan;
 use AvocetShores\LaravelRewind\Enums\ApproachMethod;
 use Illuminate\Support\Collection;
 
+/**
+ * @internal Not part of the public API. Subject to change without notice.
+ */
 class ApproachEngine
 {
     /**

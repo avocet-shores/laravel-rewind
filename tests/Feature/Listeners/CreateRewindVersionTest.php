@@ -1,10 +1,13 @@
 <?php
 
+use AvocetShores\LaravelRewind\Enums\VersionEventType;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Events\RewindVersionLockTimeout;
 use AvocetShores\LaravelRewind\Exceptions\LockTimeoutRewindException;
 use AvocetShores\LaravelRewind\Listeners\CreateRewindVersion;
+use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
+use AvocetShores\LaravelRewind\Tests\Models\Template;
 use Illuminate\Cache\PhpRedisLock;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
@@ -363,4 +366,45 @@ it('creates version and updates current_version atomically', function () {
     // Verify the version record and model are in sync
     $latestVersion = $model->versions()->max('version');
     expect($model->current_version)->toBe($latestVersion);
+});
+
+// --- Event Type Tracking ---
+
+it('sets event_type to created when a model is created', function () {
+    $post = Post::create([
+        'user_id' => 1,
+        'title' => 'Post Title',
+        'body' => 'Post Body',
+    ]);
+
+    $version = $post->versions()->where('version', 1)->first();
+    expect($version->event_type)->toBe(VersionEventType::Created->value);
+});
+
+it('sets event_type to updated when a model is updated', function () {
+    $post = Post::create([
+        'user_id' => 1,
+        'title' => 'Post Title',
+        'body' => 'Post Body',
+    ]);
+
+    $post->update(['title' => 'Updated Title']);
+
+    $version = $post->versions()->where('version', 2)->first();
+    expect($version->event_type)->toBe(VersionEventType::Updated->value);
+});
+
+it('sets event_type to deleted when a model is soft deleted', function () {
+    $template = Template::create([
+        'name' => 'Template',
+        'content' => 'Content',
+    ]);
+
+    $template->delete();
+
+    $version = RewindVersion::where('model_type', $template->getMorphClass())
+        ->orderByDesc('version')
+        ->first();
+
+    expect($version->event_type)->toBe(VersionEventType::Deleted->value);
 });

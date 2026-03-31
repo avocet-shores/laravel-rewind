@@ -2,6 +2,7 @@
 
 namespace AvocetShores\LaravelRewind\Traits;
 
+use AvocetShores\LaravelRewind\Enums\VersionEventType;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -65,7 +66,7 @@ trait Rewindable
                 $model->setAttribute($deletedAtColumn, null);
                 $model->syncOriginalAttributes([$deletedAtColumn]);
                 $model->setAttribute($deletedAtColumn, $deletedAt);
-                $model->dispatchRewindEvent();
+                $model->dispatchRewindEvent(VersionEventType::Deleted);
                 // Restore proper state so subsequent operations (e.g. restore) see
                 // the correct original deleted_at value.
                 $model->syncOriginalAttributes([$deletedAtColumn]);
@@ -81,7 +82,7 @@ trait Rewindable
         return in_array(SoftDeletes::class, class_uses_recursive($this));
     }
 
-    protected function dispatchRewindEvent(): void
+    protected function dispatchRewindEvent(?VersionEventType $eventType = null): void
     {
         // If the model signals it does not want Rewindable events, skip
         if (! empty($this->disableRewindEvents)) {
@@ -111,11 +112,24 @@ trait Rewindable
             }
         }
 
+        // Determine event type if not explicitly provided.
+        // Note: we don't use wasRecentlyCreated here because it persists on the
+        // model instance, causing subsequent updates to also appear as "created".
+        // The listener will determine Created vs Updated using the version number.
+        if ($eventType === null) {
+            $eventType = VersionEventType::Updated;
+        }
+
+        // Read metadata from the context singleton and clear it
+        $meta = app(\AvocetShores\LaravelRewind\Services\RewindContext::class)->flush();
+
         // Capture transient model state now so it survives serialization for queued listeners
         event(new RewindVersionCreating(
             model: $this,
             changes: $changedAttributes,
             wasRecentlyCreated: $this->wasRecentlyCreated,
+            eventType: $eventType,
+            meta: $meta,
         ));
     }
 

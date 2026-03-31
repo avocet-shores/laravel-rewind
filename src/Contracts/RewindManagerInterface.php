@@ -2,6 +2,7 @@
 
 namespace AvocetShores\LaravelRewind\Contracts;
 
+use AvocetShores\LaravelRewind\Dto\VersionDiff;
 use AvocetShores\LaravelRewind\Exceptions\CurrentVersionColumnMissingException;
 use AvocetShores\LaravelRewind\Exceptions\LaravelRewindException;
 use AvocetShores\LaravelRewind\Exceptions\ModelNotRewindableException;
@@ -51,4 +52,16 @@ interface RewindManagerInterface
      * @throws LaravelRewindException
      */
     public function getVersionAttributes(Model $model, int $targetVersion): array;
+
+    /**
+     * Compare two versions and return a structured diff.
+     *
+     * @throws LaravelRewindException
+     */
+    public function diff(Model $model, int $fromVersion, int $toVersion): VersionDiff;
+
+    /**
+     * Set metadata to attach to the next version created.
+     */
+    public function withMeta(array $meta): void;
 }
