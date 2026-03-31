@@ -10,6 +10,7 @@ use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -290,7 +291,7 @@ trait Rewindable
     /**
      * Get the state transition history for a specific field.
      */
-    public function stateHistory(string $field): \Illuminate\Support\Collection
+    public function stateHistory(string $field): Collection
     {
         return $this->versions() // @phpstan-ignore method.notFound
             ->whereStateChanged($field)
