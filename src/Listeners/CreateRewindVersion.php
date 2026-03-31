@@ -114,15 +114,18 @@ class CreateRewindVersion
 
             // Wrap version creation, model update, and auto-prune in a transaction
             // so that a crash between steps doesn't leave current_version out of sync.
-            $connection = (new RewindVersion)->getConnectionName();
+            $connection = RewindVersion::newVersionModel()->getConnectionName();
+
+            $batchUuid = $event->batchUuid;
 
             $rewindVersion = DB::connection($connection)->transaction(function () use (
                 $model, $nextVersion, $oldValues, $newValues, $isSnapshot,
                 $morphClass, $modelKey, $trackUser, $hasCurrentVersionColumn,
-                $eventType, $meta
+                $eventType, $meta, $batchUuid
             ) {
                 // Create the RewindVersion record
-                $rewindVersion = RewindVersion::create([
+                $versionModelClass = RewindVersion::resolveVersionModelClass();
+                $rewindVersion = $versionModelClass::create([
                     'model_type' => $morphClass,
                     'model_id' => $modelKey,
                     'version' => $nextVersion,
@@ -132,6 +135,7 @@ class CreateRewindVersion
                     'is_snapshot' => $isSnapshot,
                     'event_type' => $eventType,
                     'meta' => $meta ?: null,
+                    'batch_uuid' => $batchUuid,
                 ]);
 
                 // Update the model's current_version
@@ -250,7 +254,8 @@ class CreateRewindVersion
 
         $snapshotInterval = (int) config('rewind.snapshot_interval', 10);
 
-        $versionCount = RewindVersion::where('model_type', $model->getMorphClass())
+        $versionModelClass = RewindVersion::resolveVersionModelClass();
+        $versionCount = $versionModelClass::where('model_type', $model->getMorphClass())
             ->where('model_id', $model->getKey())
             ->count();
 

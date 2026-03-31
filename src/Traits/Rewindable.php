@@ -122,8 +122,15 @@ trait Rewindable
             $eventType = VersionEventType::Updated;
         }
 
-        // Read metadata from the context singleton and clear it
-        $meta = app(RewindContext::class)->flush();
+        // Read metadata and overrides from the context singleton
+        $context = app(RewindContext::class);
+        $meta = $context->flush();
+        $batchUuid = $context->getBatchUuid();
+
+        $eventTypeOverride = $context->flushEventTypeOverride();
+        if ($eventTypeOverride !== null) {
+            $eventType = $eventTypeOverride;
+        }
 
         // Capture transient model state now so it survives serialization for queued listeners
         event(new RewindVersionCreating(
@@ -132,6 +139,7 @@ trait Rewindable
             wasRecentlyCreated: $this->wasRecentlyCreated,
             eventType: $eventType,
             meta: $meta,
+            batchUuid: $batchUuid,
         ));
     }
 
@@ -169,7 +177,7 @@ trait Rewindable
      */
     public function versions(): MorphMany
     {
-        return $this->morphMany(RewindVersion::class, 'model');
+        return $this->morphMany(RewindVersion::resolveVersionModelClass(), 'model');
     }
 
     /**

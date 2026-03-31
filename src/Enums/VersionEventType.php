@@ -9,4 +9,6 @@ enum VersionEventType: string
     case Updated = 'updated';
 
     case Deleted = 'deleted';
+
+    case Restored = 'restored';
 }

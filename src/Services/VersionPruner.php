@@ -32,7 +32,8 @@ class VersionPruner
             : null;
 
         // Query distinct (model_type, model_id) groups
-        $groupsQuery = RewindVersion::query()
+        $versionModelClass = RewindVersion::resolveVersionModelClass();
+        $groupsQuery = $versionModelClass::query()
             ->select('model_type', 'model_id')
             ->distinct();
 
@@ -95,7 +96,7 @@ class VersionPruner
             return $this->determinePrunable($versions, $keepCount, $cutoffDate)->count();
         }
 
-        $connection = (new RewindVersion)->getConnectionName();
+        $connection = RewindVersion::newVersionModel()->getConnectionName();
 
         return DB::connection($connection)->transaction(function () use (
             $modelType, $modelId, $keepCount, $cutoffDate
@@ -125,7 +126,8 @@ class VersionPruner
             }
 
             // Delete prunable versions
-            RewindVersion::query()
+            $versionModelClass = RewindVersion::resolveVersionModelClass();
+            $versionModelClass::query()
                 ->whereIn('id', $prunableIds)
                 ->delete();
 
@@ -138,7 +140,8 @@ class VersionPruner
      */
     private function loadVersionMetadata(string $modelType, mixed $modelId, bool $lockForUpdate = false): Collection
     {
-        $query = RewindVersion::query()
+        $versionModelClass = RewindVersion::resolveVersionModelClass();
+        $query = $versionModelClass::query()
             ->where('model_type', $modelType)
             ->where('model_id', $modelId)
             ->select('id', 'version', 'is_snapshot', 'created_at')
@@ -191,7 +194,8 @@ class VersionPruner
     {
         $state = $this->stateBuilder->reconstructStateAtVersion($modelType, $modelId, $targetVersion);
 
-        $version = RewindVersion::query()
+        $versionModelClass = RewindVersion::resolveVersionModelClass();
+        $version = $versionModelClass::query()
             ->where('model_type', $modelType)
             ->where('model_id', $modelId)
             ->where('version', $targetVersion)

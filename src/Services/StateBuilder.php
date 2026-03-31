@@ -60,7 +60,8 @@ class StateBuilder
      */
     public function reconstructStateAtVersion(string $modelType, mixed $modelId, int $targetVersion): array
     {
-        $versions = RewindVersion::query()
+        $versionModelClass = RewindVersion::resolveVersionModelClass();
+        $versions = $versionModelClass::query()
             ->where('model_type', $modelType)
             ->where('model_id', $modelId)
             ->orderBy('version')
