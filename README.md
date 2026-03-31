@@ -6,115 +6,45 @@
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/avocet-shores/laravel-rewind/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/avocet-shores/laravel-rewind/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/avocet-shores/laravel-rewind.svg?style=flat-square)](https://packagist.org/packages/avocet-shores/laravel-rewind)
 
-Laravel Rewind is a powerful, easy-to-use versioning package for your Eloquent models.
+Full version control for your Eloquent models. Rewind, fast-forward, restore, diff, and query point-in-time state.
 
-Imagine you have a Post model and want to track how it evolves over time:
+Under the hood, Rewind stores a mix of partial diffs and full snapshots. You get the storage efficiency of diffs with the reconstruction speed of snapshots, and the interval is configurable to suit your needs.
 
 ```php
 use AvocetShores\LaravelRewind\Facades\Rewind;
 
-// Previous title: 'Old Title'
-$post->title = 'Updated Title';
-$post->save();
+$post->update(['title' => 'Updated Title']);
 
-// Title goes back to 'Old Title'
-Rewind::rewind($post);
-
-// Title goes forward to 'Updated Title'
-Rewind::fastForward($post);
+Rewind::rewind($post);       // Back to 'Old Title'
+Rewind::fastForward($post);  // Forward to 'Updated Title'
+Rewind::goTo($post, 3);      // Jump to any version
+Rewind::restore($post, 1);   // Create a new version from v1's state
 ```
 
-You can also view a list of previous versions of a model, see what changed, and even jump to a specific version.
+## Why Rewind?
 
-```php
-$versions = $post->versions;
-
-Rewind::goTo($post, $versions->first()->version);
-```
-
-## How It Works
-
-Under the hood, Rewind stores a combination of partial diffs and full snapshots of your model’s data. The interval between 
-full snapshots is determined by the `rewind.snapshot_interval` config value. This provides you with a customizable trade-off 
-between storage cost and performance. Rewind's engine will automatically determine the shortest path between your current 
-version, available snapshots, and your target.
-
-### How does Rewind handle history?
-
-Rewind maintains a simple linear history of your model’s changes, but what exactly happens when you update a model 
-while on an older version? Let's take a look:
-
-1. You create a new version of your model:
-
-```php
-// Previous title: 'Old Title'
-$post->title = 'New Title';
-$post->save();
-```
-
-2. You rewind to a previous version:
-
-```php
-// Title goes back to 'Old Title'
-Rewind::rewind($post);
-```
-
-3. You update the model *while on an older version*:
-
-```php
-$post->title = 'Rewind is Awesome!';
-$post->save();
-```
-
-4. What version are we on now, and what data is in it?
-
-In order to maintain a linear, non-destructive history, Rewind uses the previous head version as the 
-content of the `old_values` for the new version you just created. It also creates a full snapshot of the model’s 
-current state and designates it as the new head. So the current version in our above example looks like this:
-
-```php
-[
-    'version' => 3,
-    'old_values' => [
-        'title' => 'New Title', // Note: This is the title from v2, not v1
-        // Other attributes...
-    ],
-    'new_values' => [
-        'title' => 'Rewind is Awesome!',
-        // Other attributes...
-    ],
-]
-```
-
-In other words, your model's history will always look like it updated from the previous head version. This way, you can always see 
-what changed between versions, even if you jump back and forth in time. And you can always revert to a previous version without fear of losing data.
-
-### Thread Safety
-
-Rewind is designed with thread-safety in mind. Before creating a new version, Rewind must acquire a cache lock for that specific record. This ensures that only one 
-process can create a new version at a time. If a process is unable to acquire the lock, it will wait for a set period of time before throwing an exception.
+- **Hybrid storage engine.** Diffs between snapshots keep storage small. Snapshots at configurable intervals keep reconstruction fast. You control the trade-off.
+- **Thread-safe.** Cache-based locking prevents version sequence breaks during concurrent writes.
+- **Non-destructive history.** Edits on older versions, restores, and pruning all preserve the full audit trail.
+- **Batch versioning.** Group changes across multiple models into a single logical revision.
+- **Built for real workloads.** Queued version creation, automatic pruning, and a cost-based approach engine that picks the fastest reconstruction path.
 
 ## Installation
-
-You can install the package via composer:
 
 ```bash
 composer require avocet-shores/laravel-rewind
 ```
 
-You can publish and run the migrations, and publish the config, with:
+Publish and run the migrations, and publish the config:
 
 ```bash
 php artisan vendor:publish --provider="AvocetShores\LaravelRewind\LaravelRewindServiceProvider"
-
 php artisan migrate
 ```
 
 ## Getting Started
 
-To enable version tracking on a model, follow these two steps:
-
-### 1. Add the Rewindable trait to your Eloquent model:
+### 1. Add the trait
 
 ```php
 use AvocetShores\LaravelRewind\Traits\Rewindable;
@@ -125,194 +55,86 @@ class Post extends Model
 }
 ```
 
-### 2. Add the `current_version` column to your model’s table:
-
-In order to function properly, Rewind needs to track which version your model is currently on. You can use our 
-convenient artisan command to generate a migration to do just that:
+### 2. Add the `current_version` column
 
 ```bash
 php artisan rewind:add-version
 ```
 
-- This command will prompt you for the table name you wish to extend.  
-- After providing the table name, it creates a migration file that will add a current_version column to that table.
-- Run `php artisan migrate` to apply it.  
-- Once this column is in place, the RewindManager will automatically manage your model’s current_version.
+This generates a migration that adds `current_version` to your model's table. Run `php artisan migrate` to apply it.
 
-That’s it! Now your model’s changes are recorded in the `rewind_versions` table, and you can jump backwards or forwards in time.
+That's it. Your model's changes are now tracked automatically.
 
-## Usage
-
-### Creating/Updating a Model
-
-```php
-$post = Post::find(1);
-$post->title = "New Title";
-$post->save();  
-// A new version is automatically created
-```
-
-### Using the Rewind Facade
+## Navigating History
 
 ```php
 use AvocetShores\LaravelRewind\Facades\Rewind;
 
-// Rewind two versions back
-Rewind::rewind($post, 2);
+// Step backward/forward
+Rewind::rewind($post, 2);    // Go back 2 versions
+Rewind::fastForward($post);  // Go forward 1 version
 
-// Fast-forward one version
-Rewind::fastForward($post);
-
-// Jump directly to a specific version
+// Jump to a specific version
 Rewind::goTo($post, 5);
+
+// Get the model's state at a specific point in time
+$attributes = Rewind::versionAt($post, Carbon::parse('2025-01-15 14:30:00'));
 ```
 
-### Excluding attributes from versioning
+## Restoring State
 
-If you have attributes that you don't want to track, you can exclude them by adding an `excludedFromVersioning` 
-method to your model:
+There are two ways to go back to a previous version, and the distinction matters:
+
+`goTo()` moves the pointer. The model is updated to match the target version, but no new version record is created. Good for previewing or navigating.
+
+`restore()` creates a new version with the target version's state. The history shows the restore happened. Good for audit trails and compliance.
 
 ```php
-public static function excludedFromVersioning(): array
-{
-    return ['password', 'api_token'];
-}
+// Move the pointer (no audit trail of the move itself)
+Rewind::goTo($post, 3);
+
+// Create a new version from v3's state (audit trail preserved)
+Rewind::restore($post, 3);
+// $post is now at v8 (or whatever the next version is), with v3's attributes
+// The version record has event_type 'restored' and meta['restored_from_version'] = 3
 ```
+
+## Inspecting Changes
+
+### Version history
+
+```php
+$versions = $post->versions;
+```
+
+### Diff between two versions
+
+```php
+$diff = Rewind::diff($post, 1, 5);
+
+$diff->changed;   // ['title' => ['old' => 'Draft', 'new' => 'Published']]
+$diff->added;     // Attributes only in v5
+$diff->removed;   // Attributes only in v1
+$diff->isEmpty(); // false
+```
+
+Works in either direction. `diff($post, 5, 1)` swaps old and new.
 
 ### Build a specific version's attributes
 
-Because Rewind stores a combination of partial diffs and snapshots, there's no guarantee a RewindVersion contains 
-all the data for a version. However, the getVersionAttributes method will build and return a complete set of attributes
-for a specific version.
+Diffs don't always contain all the data for a version. This method reconstructs the full attribute set:
 
 ```php
 $attributes = Rewind::getVersionAttributes($post, 7);
 ```
 
-
-### Clone a Model at a specific version
-
-You can clone a model by using the `cloneModel` function. This will create a new model and fill it with the attributes from the specified version.
+### Clone a model at a version
 
 ```php
-$clonedPost = Rewind::cloneModel($post, 5);
+$clone = Rewind::cloneModel($post, 5);
 ```
 
-### Initialize a v1 on your model without making any changes
-
-If you have an existing model and want to add a v1 record without making any changes, you can call the `initVersion` function directly from your Rewindable model.
-
-```php
-$post->initVersion();
-```
-
-### Pruning Old Versions
-
-Over time, the `rewind_versions` table can grow quite large. You can clean it up with the `rewind:prune` command.
-
-To keep only the last N versions per model instance:
-
-```bash
-php artisan rewind:prune --keep=50
-```
-
-To delete versions older than a certain number of days:
-
-```bash
-php artisan rewind:prune --days=365
-```
-
-You can combine both. When used together, `--keep` protects the most recent N versions regardless of age, and `--days` only prunes from the remaining versions that are old enough:
-
-```bash
-php artisan rewind:prune --keep=50 --days=365
-```
-
-If you only want to prune versions for specific model types, use the `--model` option:
-
-```bash
-php artisan rewind:prune --keep=50 --model=App\\Models\\Post
-```
-
-To see what would be deleted without actually deleting anything, use `--pretend`:
-
-```bash
-php artisan rewind:prune --keep=50 --pretend
-```
-
-You can schedule the command to run automatically. Use `--force` to skip the confirmation prompt:
-
-```php
-// In routes/console.php or your Console Kernel
-Schedule::command('rewind:prune --keep=50 --force')->daily();
-```
-
-When versions are pruned, Rewind automatically converts the new oldest remaining version into a full snapshot. This means `Rewind::goTo()` will continue to work for all surviving versions.
-
-You can also set defaults for `--keep` and `--days` in `config/rewind.php` via `prune_keep_versions` and `prune_older_than_days`. The command will use these when no options are passed.
-
-### Automatic Version Limits
-
-If you want to cap how many versions a model keeps, add a `$maxRewindVersions` property to your model:
-
-```php
-use AvocetShores\LaravelRewind\Traits\Rewindable;
-
-class Post extends Model
-{
-    use Rewindable;
-
-    protected static int $maxRewindVersions = 30;
-}
-```
-
-When a new version is created and the count exceeds this limit, the oldest versions are automatically pruned.
-
-You can also set a global default via the `max_versions` option in `config/rewind.php`. The per-model property takes precedence over the global config.
-
-### Compare what changed between two versions
-
-Sometimes you want to see exactly what's different between two points in a model's history. The `diff` method 
-reconstructs both versions and compares them, returning a `VersionDiff` object:
-
-```php
-$diff = Rewind::diff($post, 1, 5);
-
-$diff->changed;  // ['title' => ['old' => 'Draft', 'new' => 'Published']]
-$diff->added;    // Attributes only present in version 5
-$diff->removed;  // Attributes only present in version 1
-$diff->isEmpty(); // false
-```
-
-This works in either direction. Calling `diff($post, 5, 1)` simply swaps the old and new values.
-
-### Attach metadata to a version
-
-If you need to record *why* a change was made, you can attach arbitrary metadata before saving. Call `withMeta()` 
-and the next version created will include that data:
-
-```php
-Rewind::withMeta(['reason' => 'Bulk price update', 'ticket' => 'JIRA-123']);
-$product->update(['price' => 29.99]);
-```
-
-The version record will now have a `meta` field containing `{"reason": "Bulk price update", "ticket": "JIRA-123"}`. 
-Metadata is automatically cleared after the version is created, so it won't leak into subsequent saves.
-
-### Event type tracking
-
-Each version record automatically tracks the type of event that created it: `created`, `updated`, or `deleted`. 
-This makes it easy to filter your version history by what kind of change occurred:
-
-```php
-use AvocetShores\LaravelRewind\Enums\VersionEventType;
-
-$creates = $post->versions()->where('event_type', VersionEventType::Created->value)->get();
-```
-
-### Query your version history
-
-`RewindVersion` ships with a handful of query scopes to make filtering version records straightforward:
+### Query scopes
 
 ```php
 use AvocetShores\LaravelRewind\Models\RewindVersion;
@@ -323,22 +145,28 @@ RewindVersion::byUser($userId)->get();
 RewindVersion::ofType(VersionEventType::Updated)->get();
 RewindVersion::betweenDates($startDate, $endDate)->get();
 RewindVersion::betweenVersions(1, 10)->get();
-```
 
-Scopes can be chained together to build more specific queries:
-
-```php
+// Chain them together
 RewindVersion::forModel($post)
     ->ofType(VersionEventType::Updated)
     ->byUser($userId)
     ->get();
 ```
 
-### Amending the current version
+## Controlling What's Tracked
 
-Sometimes you want to save a change without creating a new version. Maybe you're bumping a counter, syncing a denormalized field, or making a minor correction that doesn't warrant its own entry in the history.
+### Exclude attributes
 
-`amendCurrentVersion` updates the model in the database and folds the change into the current version record:
+```php
+public static function excludedFromVersioning(): array
+{
+    return ['password', 'api_token'];
+}
+```
+
+### Amend the current version
+
+Sometimes you want to save a change without creating a new version. Maybe you're bumping a counter or syncing a denormalized field.
 
 ```php
 Rewind::amendCurrentVersion(function () {
@@ -346,27 +174,161 @@ Rewind::amendCurrentVersion(function () {
 });
 ```
 
-No new version row is created. The changed attributes are added to the current version's `old_values` and `new_values`, so `goTo()`, `rewind()`, and `diff()` continue to work as expected.
+The changed attributes are folded into the current version's `old_values` and `new_values`. No new version row is created, but `goTo()`, `rewind()`, and `diff()` still work as expected.
 
-The callback supports nesting and guarantees cleanup even if an exception is thrown.
+> If an attribute should _never_ appear in version history, use `excludedFromVersioning()` instead. `amendCurrentVersion` is for attributes you still want tracked, just not as a separate version.
 
-> **Tip:** If an attribute should _never_ appear in version history, use `excludedFromVersioning()` instead. `amendCurrentVersion` is for attributes you still want tracked, just not as a separate version.
+### Attach metadata
 
-### Point-in-time lookup
-
-Retrieve a model's attributes as they existed at a specific point in time:
+Record why a change was made:
 
 ```php
-$attributes = Rewind::versionAt($post, Carbon::parse('2025-01-15 14:30:00'));
-// Returns the full attribute array from the most recent version at or before that timestamp
+Rewind::withMeta(['reason' => 'Bulk price update', 'ticket' => 'JIRA-123']);
+$product->update(['price' => 29.99]);
 ```
+
+Metadata is stored in the version's `meta` field and automatically cleared after version creation.
+
+### Event type tracking
+
+Each version records the event that created it: `created`, `updated`, `deleted`, or `restored`.
+
+```php
+$creates = $post->versions()->where('event_type', VersionEventType::Created->value)->get();
+```
+
+### Initialize a v1 without changes
+
+If you have an existing model and want to create a baseline version record:
+
+```php
+$post->initVersion();
+```
+
+## Working With Multiple Models
+
+Batch versioning groups changes across models under a shared identifier:
+
+```php
+$batchUuid = Rewind::batch(function () {
+    $order->update(['status' => 'shipped']);
+    $item->update(['shipped_at' => now()]);
+});
+
+// Query all versions in the batch
+$versions = RewindVersion::inBatch($batchUuid)->get();
+```
+
+## Managing Storage
+
+### Pruning old versions
+
+```bash
+# Keep the last 50 versions per model
+php artisan rewind:prune --keep=50
+
+# Delete versions older than a year
+php artisan rewind:prune --days=365
+
+# Combine both (--keep protects recent versions regardless of age)
+php artisan rewind:prune --keep=50 --days=365
+
+# Prune a specific model type
+php artisan rewind:prune --keep=50 --model=App\\Models\\Post
+
+# Dry run
+php artisan rewind:prune --keep=50 --pretend
+```
+
+When versions are pruned, Rewind automatically converts the new oldest remaining version into a full snapshot so navigation continues to work.
+
+Schedule it:
+
+```php
+Schedule::command('rewind:prune --keep=50 --force')->daily();
+```
+
+You can set defaults for `--keep` and `--days` in `config/rewind.php` via `prune_keep_versions` and `prune_older_than_days`.
+
+### Automatic version limits
+
+Cap versions per model:
+
+```php
+class Post extends Model
+{
+    use Rewindable;
+
+    protected static int $maxRewindVersions = 30;
+}
+```
+
+Or set a global default via the `max_versions` config key. The per-model property takes precedence.
+
+## Configuration
+
+### Custom version model
+
+Extend `RewindVersion` with your own model:
+
+```php
+// config/rewind.php
+'version_model' => App\Models\CustomRewindVersion::class,
+```
+
+Your model must extend `AvocetShores\LaravelRewind\Models\RewindVersion`.
+
+### Queued version creation
+
+For high-write models, dispatch version creation to a queue:
+
+```php
+// config/rewind.php
+'listener_should_queue' => true,
+```
+
+Queue retry behavior is configurable via the `queue` config key.
 
 ### Lock timeout handling
 
-When a cache lock cannot be acquired for version creation, the behavior is configurable via the `on_lock_timeout` 
-option in `config/rewind.php`. By default it logs an error silently. You can also set it to `"event"` to dispatch 
-a `RewindVersionLockTimeout` event for custom handling, or `"throw"` to throw a `LockTimeoutRewindException`. 
-The throw mode is especially useful with queued listeners, since it triggers Laravel's built-in retry mechanism.
+When a cache lock can't be acquired, behavior is configurable via `on_lock_timeout`:
+
+- `log` (default): Logs an error silently.
+- `event`: Dispatches a `RewindVersionLockTimeout` event for custom handling.
+- `throw`: Throws a `LockTimeoutRewindException`. Useful with queued listeners since it triggers Laravel's retry mechanism.
+
+### Snapshot interval
+
+Controls how often full snapshots are stored vs. partial diffs. Default is every 10 versions. Higher values save storage at the cost of longer reconstruction times.
+
+```php
+// config/rewind.php
+'snapshot_interval' => 10,
+```
+
+## How It Works
+
+Rewind maintains a linear, non-destructive history. Here's what happens when you edit a model while on an older version:
+
+1. Create a post, then update it. You're at v2.
+2. Rewind to v1.
+3. Update the post again.
+
+Rewind uses the previous head version (v2) as the `old_values` for the new version (v3), creates a full snapshot, and marks v3 as the new head:
+
+```php
+[
+    'version' => 3,
+    'old_values' => [
+        'title' => 'New Title', // From v2, not v1
+    ],
+    'new_values' => [
+        'title' => 'Rewind is Awesome!',
+    ],
+]
+```
+
+The history always reads as if you updated from the previous head. You can jump around freely without losing data.
 
 ## Testing
 
