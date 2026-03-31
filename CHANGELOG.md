@@ -38,6 +38,25 @@ All notable changes to `laravel-rewind` will be documented in this file.
 * Changed `minimum-stability` from `dev` to `stable`.
 * Added `CONTRIBUTING.md`.
 
+### New Config Options
+
+Re-publish the config file to get all new options, or add them manually:
+
+```bash
+php artisan vendor:publish --tag="laravel-rewind-config" --force
+```
+
+| Key | Env Variable | Default | Description |
+|-----|-------------|---------|-------------|
+| `user_id_cast` | `LARAVEL_REWIND_USER_ID_CAST` | `integer` | Eloquent cast for the user ID column. Set to `string` for UUID primary keys. |
+| `max_versions` | `LARAVEL_REWIND_MAX_VERSIONS` | `null` | Auto-prune old versions per model. `null` disables pruning. |
+| `prune_keep_versions` | `LARAVEL_REWIND_PRUNE_KEEP` | `null` | Default `--keep` value for the `rewind:prune` command. |
+| `prune_older_than_days` | `LARAVEL_REWIND_PRUNE_DAYS` | `null` | Default `--days` value for the `rewind:prune` command. |
+| `on_lock_timeout` | `LARAVEL_REWIND_ON_LOCK_TIMEOUT` | `log` | Lock failure behavior: `log`, `event`, or `throw`. |
+| `queue.tries` | `LARAVEL_REWIND_QUEUE_TRIES` | `3` | Retry attempts for the queued listener. |
+| `queue.timeout` | `LARAVEL_REWIND_QUEUE_TIMEOUT` | `60` | Timeout (seconds) for the queued listener. |
+| `queue.backoff` | -- | `[2, 10, 30]` | Backoff delays (seconds) between retries. |
+
 ### Migration Notes
 
 This release adds two new nullable columns to the `rewind_versions` table: `event_type` (string) and `meta` (json).
