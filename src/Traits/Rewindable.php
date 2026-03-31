@@ -2,14 +2,17 @@
 
 namespace AvocetShores\LaravelRewind\Traits;
 
+use AvocetShores\LaravelRewind\Builders\AsOfBuilder;
 use AvocetShores\LaravelRewind\Enums\VersionEventType;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Services\RewindContext;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -250,6 +253,16 @@ trait Rewindable
         }
 
         return optional(Auth::user())->getKey();
+    }
+
+    /**
+     * Query scope that reconstructs all matching models at a given point in time.
+     *
+     * @return AsOfBuilder
+     */
+    public function scopeAsOf(Builder $query, Carbon $timestamp): AsOfBuilder
+    {
+        return new AsOfBuilder($query, $timestamp);
     }
 
     public function disableRewindEvents(): void

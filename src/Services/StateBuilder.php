@@ -53,6 +53,51 @@ class StateBuilder
     }
 
     /**
+     * Batch-reconstruct state for multiple models at their respective target versions.
+     *
+     * Loads all version records in a single query and reconstructs each model
+     * independently. Returns an associative array keyed by model_id.
+     *
+     * @param  array<int|string, int>  $modelVersionMap  [model_id => target_version, ...]
+     * @return array<int|string, array>  [model_id => attributes, ...]
+     */
+    public function reconstructMultipleModelsAtVersions(array $modelVersionMap, string $modelType): array
+    {
+        if (empty($modelVersionMap)) {
+            return [];
+        }
+
+        $versionModelClass = RewindVersion::resolveVersionModelClass();
+
+        // Load all versions for all requested models in one query
+        $allVersions = $versionModelClass::query()
+            ->where('model_type', $modelType)
+            ->whereIn('model_id', array_keys($modelVersionMap))
+            ->orderBy('version')
+            ->get()
+            ->groupBy('model_id');
+
+        $results = [];
+
+        foreach ($modelVersionMap as $modelId => $targetVersion) {
+            $versions = $allVersions->get($modelId, collect());
+
+            if ($versions->isEmpty()) {
+                continue;
+            }
+
+            $results[$modelId] = $this->buildStateForVersion(
+                versions: $versions,
+                currentVersion: 0,
+                targetVersion: $targetVersion,
+                currentAttributes: [],
+            );
+        }
+
+        return $results;
+    }
+
+    /**
      * Reconstruct state at a target version by querying the database directly.
      *
      * This is the entry point for callers that don't have an eager-loaded

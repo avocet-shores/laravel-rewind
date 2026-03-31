@@ -2,6 +2,7 @@
 
 namespace AvocetShores\LaravelRewind\Services;
 
+use AvocetShores\LaravelRewind\Builders\AsOfBuilder;
 use AvocetShores\LaravelRewind\Contracts\RewindManagerInterface;
 use AvocetShores\LaravelRewind\Dto\VersionDiff;
 use AvocetShores\LaravelRewind\Enums\VersionEventType;
@@ -248,6 +249,24 @@ class RewindManager implements RewindManagerInterface
         }
 
         return $this->buildAttributesForVersion($model, $version->version);
+    }
+
+    /**
+     * Create an AsOfBuilder for a model class to reconstruct all instances at a point in time.
+     *
+     * @param  class-string<Model>  $modelClass
+     *
+     * @throws ModelNotRewindableException
+     */
+    public function modelsAsOf(string $modelClass, Carbon $timestamp): AsOfBuilder
+    {
+        $model = new $modelClass;
+
+        if (collect(class_uses_recursive($model::class))->doesntContain(Rewindable::class)) {
+            throw new ModelNotRewindableException(sprintf('%s must use the Rewindable trait in order to access Rewind functionality.', $model::class));
+        }
+
+        return new AsOfBuilder($model->newQuery(), $timestamp);
     }
 
     /**

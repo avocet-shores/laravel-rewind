@@ -2,6 +2,7 @@
 
 namespace AvocetShores\LaravelRewind\Facades;
 
+use AvocetShores\LaravelRewind\Builders\AsOfBuilder;
 use AvocetShores\LaravelRewind\Dto\VersionDiff;
 use AvocetShores\LaravelRewind\Services\RewindManager;
 use Illuminate\Database\Eloquent\Model;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static void withMeta(array $meta) Set metadata to attach to the next version created
  * @method static string batch(callable $callback) Group multiple changes into a single batch, returns batch UUID
  * @method static mixed amendCurrentVersion(callable $callback) Execute callback where changes amend the current version
+ * @method static AsOfBuilder modelsAsOf(string $modelClass, \Illuminate\Support\Carbon $timestamp) Reconstruct all instances of a model at a point in time
  */
 class Rewind extends Facade
 {
