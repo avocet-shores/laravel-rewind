@@ -57,6 +57,9 @@ class InitVersionsCommand extends Command
         }
 
         $created = 0;
+
+        // The progress bar total is approximate — concurrent processes may create versions
+        // between the count() and chunkById() queries. The final $created count is accurate.
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 

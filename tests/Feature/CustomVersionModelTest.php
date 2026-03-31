@@ -3,6 +3,7 @@
 use AvocetShores\LaravelRewind\Facades\Rewind;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Tests\Models\CustomRewindVersion;
+use AvocetShores\LaravelRewind\Tests\Models\CustomRewindVersionWithFillable;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
 use AvocetShores\LaravelRewind\Tests\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -10,18 +11,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    RewindVersion::clearResolvedVersionModelClass();
-
     $this->user = User::create([
         'name' => 'Test User',
         'email' => 'test@example.com',
         'password' => 'password',
     ]);
     test()->actingAs($this->user);
-});
-
-afterEach(function () {
-    RewindVersion::clearResolvedVersionModelClass();
 });
 
 it('defaults to RewindVersion when version_model is not configured', function () {
@@ -100,4 +95,41 @@ it('handles null version_model config gracefully', function () {
     config()->set('rewind.version_model', null);
 
     expect(RewindVersion::resolveVersionModelClass())->toBe(RewindVersion::class);
+});
+
+it('reflects config changes without needing a cache clear', function () {
+    config()->set('rewind.version_model', null);
+    expect(RewindVersion::resolveVersionModelClass())->toBe(RewindVersion::class);
+
+    config()->set('rewind.version_model', CustomRewindVersion::class);
+    expect(RewindVersion::resolveVersionModelClass())->toBe(CustomRewindVersion::class);
+});
+
+it('creates versions correctly when custom model overrides $fillable', function () {
+    config()->set('rewind.version_model', CustomRewindVersionWithFillable::class);
+
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'Title', 'body' => 'Body']);
+
+    $version = $post->versions()->first();
+    expect($version)->toBeInstanceOf(CustomRewindVersionWithFillable::class);
+    expect($version->model_type)->toBe($post->getMorphClass());
+    expect($version->version)->toBe(1);
+    expect($version->new_values)->toBeArray();
+});
+
+it('preserves core fillable columns when child class overrides $fillable', function () {
+    $model = new CustomRewindVersionWithFillable;
+    $fillable = $model->getFillable();
+
+    $requiredColumns = [
+        'model_type', 'model_id', 'old_values', 'new_values',
+        'version', 'is_snapshot', 'event_type', 'meta', 'batch_uuid',
+    ];
+
+    foreach ($requiredColumns as $column) {
+        expect($fillable)->toContain($column);
+    }
+
+    // Child's custom column should also be present
+    expect($fillable)->toContain('custom_column');
 });

@@ -24,8 +24,6 @@ use Illuminate\Support\Carbon;
  */
 class RewindVersion extends Model
 {
-    protected static ?string $resolvedVersionModelClass = null;
-
     /**
      * The attributes that are mass assignable.
      */
@@ -59,6 +57,12 @@ class RewindVersion extends Model
      */
     public function __construct(array $attributes = [])
     {
+        // Merge required columns so child classes can't accidentally drop them
+        $this->fillable = array_unique(array_merge($this->fillable, [
+            'model_type', 'model_id', 'old_values', 'new_values',
+            'version', 'is_snapshot', 'event_type', 'meta', 'batch_uuid',
+        ]));
+
         if (! isset($this->connection)) {
             $this->setConnection(config('rewind.database_connection'));
         }
@@ -84,14 +88,10 @@ class RewindVersion extends Model
      */
     public static function resolveVersionModelClass(): string
     {
-        if (static::$resolvedVersionModelClass !== null) {
-            return static::$resolvedVersionModelClass;
-        }
-
         $model = config('rewind.version_model');
 
         if ($model === null) {
-            return static::$resolvedVersionModelClass = static::class;
+            return static::class;
         }
 
         if (! is_subclass_of($model, self::class)) {
@@ -100,16 +100,7 @@ class RewindVersion extends Model
             );
         }
 
-        return static::$resolvedVersionModelClass = $model;
-    }
-
-    /**
-     * Clear the cached resolved version model class.
-     * Useful in tests when changing the config between test cases.
-     */
-    public static function clearResolvedVersionModelClass(): void
-    {
-        static::$resolvedVersionModelClass = null;
+        return $model;
     }
 
     /**
