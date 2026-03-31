@@ -52,20 +52,25 @@ trait Rewindable
             $model->dispatchRewindEvent();
         });
 
-        static::deleting(function ($model) {
-            // Only dispatch a rewind event if the model is not force deleting
-            if ($model->hasSoftDeletes() && ! $model->isForceDeleting()) {
-
-                // Ensure `deleted_at` shows up as dirty
-                $model->forceFill([$model->getDeletedAtColumn() => $model->freshTimestampString()]);
-
-                $model->dispatchRewindEvent();
-            }
-        });
-
         static::deleted(function ($model) {
-            // If the model is force deleting or does not use soft deletes, delete all versions
-            if (! $model->hasSoftDeletes() || $model->isForceDeleting()) {
+            if ($model->hasSoftDeletes() && ! $model->isForceDeleting()) {
+                // Soft delete: dispatch rewind event after Eloquent has set deleted_at,
+                // so the version records the exact timestamp stored in the database.
+                // runSoftDelete() calls syncOriginalAttributes() which syncs the original
+                // to match the current value, losing the dirty state. We restore it by
+                // temporarily clearing deleted_at, syncing original to null, then setting
+                // it back so getDirty() and getOriginal() reflect the actual change.
+                $deletedAtColumn = $model->getDeletedAtColumn();
+                $deletedAt = $model->getAttribute($deletedAtColumn);
+                $model->setAttribute($deletedAtColumn, null);
+                $model->syncOriginalAttributes([$deletedAtColumn]);
+                $model->setAttribute($deletedAtColumn, $deletedAt);
+                $model->dispatchRewindEvent();
+                // Restore proper state so subsequent operations (e.g. restore) see
+                // the correct original deleted_at value.
+                $model->syncOriginalAttributes([$deletedAtColumn]);
+            } else {
+                // Force delete or no soft deletes: remove all versions
                 $model->versions()->delete();
             }
         });
