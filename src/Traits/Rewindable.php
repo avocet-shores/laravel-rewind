@@ -5,6 +5,7 @@ namespace AvocetShores\LaravelRewind\Traits;
 use AvocetShores\LaravelRewind\Enums\VersionEventType;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
+use AvocetShores\LaravelRewind\Services\RewindContext;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -121,7 +122,7 @@ trait Rewindable
         }
 
         // Read metadata from the context singleton and clear it
-        $meta = app(\AvocetShores\LaravelRewind\Services\RewindContext::class)->flush();
+        $meta = app(RewindContext::class)->flush();
 
         // Capture transient model state now so it survives serialization for queued listeners
         event(new RewindVersionCreating(
