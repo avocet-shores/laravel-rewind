@@ -2,6 +2,7 @@
 
 namespace AvocetShores\LaravelRewind\Listeners;
 
+use AvocetShores\LaravelRewind\Enums\VersionEventType;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreated;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Events\RewindVersionLockTimeout;
@@ -50,6 +51,14 @@ class CreateRewindVersion
             // Determine the new version number
             $nextVersion = ($model->versions()->max('version') ?? 0) + 1; // @phpstan-ignore method.notFound
 
+            // Override event type to Created for the first version of a model,
+            // regardless of what the trait passed (wasRecentlyCreated is unreliable).
+            $eventType = $event->eventType;
+            $meta = $event->meta;
+            if ($nextVersion === 1) {
+                $eventType = VersionEventType::Created;
+            }
+
             $oldValues = [];
             $newValues = [];
 
@@ -96,7 +105,7 @@ class CreateRewindVersion
                 $newValues = Arr::only($allAttributes, $attributesToTrack);
             }
 
-            // Capture values from the model before entering the transaction closure,
+            // Capture values from the model and event before entering the transaction closure,
             // so PHPStan can resolve trait methods on the concrete model type.
             $morphClass = $model->getMorphClass();
             $modelKey = $model->getKey();
@@ -109,7 +118,8 @@ class CreateRewindVersion
 
             $rewindVersion = DB::connection($connection)->transaction(function () use (
                 $model, $nextVersion, $oldValues, $newValues, $isSnapshot,
-                $morphClass, $modelKey, $trackUser, $hasCurrentVersionColumn
+                $morphClass, $modelKey, $trackUser, $hasCurrentVersionColumn,
+                $eventType, $meta
             ) {
                 // Create the RewindVersion record
                 $rewindVersion = RewindVersion::create([
@@ -120,6 +130,8 @@ class CreateRewindVersion
                     'old_values' => $oldValues ?: null,
                     'new_values' => $newValues ?: null,
                     'is_snapshot' => $isSnapshot,
+                    'event_type' => $eventType,
+                    'meta' => $meta ?: null,
                 ]);
 
                 // Update the model's current_version

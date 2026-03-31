@@ -2,6 +2,78 @@
 
 All notable changes to `laravel-rewind` will be documented in this file.
 
+## v0.8.0 - 2026-03-30
+
+### New Features
+
+* **Version diff/comparison API** -- Compare any two versions with `Rewind::diff($model, $from, $to)`, returns a structured `VersionDiff` DTO with `changed`, `added`, and `removed` attributes.
+* **Custom metadata per version** -- Attach arbitrary key-value data to versions via `Rewind::withMeta(['reason' => '...'])`. Stored in a new `meta` JSON column. Metadata is automatically cleared after version creation.
+* **Event type tracking** -- Each version now records its `event_type` (`created`, `updated`, or `deleted`) in a dedicated column, making version history queryable by action type.
+* **Query scopes on RewindVersion** -- New scopes: `forModel()`, `byUser()`, `ofType()`, `betweenDates()`, `betweenVersions()` for filtering version records.
+* **Version pruning system** -- New `rewind:prune` command with `--keep`, `--days`, `--model`, `--pretend`, and `--force` options. Automatically converts the new oldest version to a snapshot to preserve navigability.
+* **Auto-pruning** -- Per-model `$maxRewindVersions` property and global `max_versions` config. Pruning is batched using `snapshot_interval` as a buffer to amortize transaction costs.
+* **Configurable lock timeout handling** -- New `on_lock_timeout` config with `log`, `event`, and `throw` modes. New `RewindVersionLockTimeout` event and `LockTimeoutRewindException`.
+* **Composite database index** -- `(model_type, model_id, version)` for faster version-scoped queries.
+
+### Bug Fixes
+
+* Fix soft delete version timestamp mismatch -- moved version creation to `deleted` event to capture exact database timestamp.
+* Fix queued listener serialization -- capture changes and `wasRecentlyCreated` at dispatch time so they survive `SerializesModels` round-trips.
+* Fix version pruning with gaps -- iterate actual version records instead of sequential integers.
+* Add transaction safety -- version creation, `current_version` update, and auto-prune are now atomic.
+* Add cache lock to `goTo()` for concurrency safety.
+* Use `saveQuietly()` when updating `current_version` to prevent unintended model events.
+
+### Architecture
+
+* New `StateBuilder` service consolidating all state reconstruction logic.
+* New `RewindManagerInterface` contract for dependency injection.
+* New `VersionPruner` service, `PruneResult` DTO, `RewindContext` singleton, `SchemaHelper` utility.
+* `ApproachEngine` now accepts `Collection` for use outside of model context.
+* Internal classes marked with `@internal` to define public API boundary.
+
+### Housekeeping
+
+* Removed `version` field from `composer.json` (Packagist reads git tags).
+* Changed `minimum-stability` from `dev` to `stable`.
+* Added `CONTRIBUTING.md`.
+
+### New Config Options
+
+Re-publish the config file to get all new options, or add them manually:
+
+```bash
+php artisan vendor:publish --tag="laravel-rewind-config" --force
+```
+
+| Key | Env Variable | Default | Description |
+|-----|-------------|---------|-------------|
+| `user_id_cast` | `LARAVEL_REWIND_USER_ID_CAST` | `integer` | Eloquent cast for the user ID column. Set to `string` for UUID primary keys. |
+| `max_versions` | `LARAVEL_REWIND_MAX_VERSIONS` | `null` | Auto-prune old versions per model. `null` disables pruning. |
+| `prune_keep_versions` | `LARAVEL_REWIND_PRUNE_KEEP` | `null` | Default `--keep` value for the `rewind:prune` command. |
+| `prune_older_than_days` | `LARAVEL_REWIND_PRUNE_DAYS` | `null` | Default `--days` value for the `rewind:prune` command. |
+| `on_lock_timeout` | `LARAVEL_REWIND_ON_LOCK_TIMEOUT` | `log` | Lock failure behavior: `log`, `event`, or `throw`. |
+| `queue.tries` | `LARAVEL_REWIND_QUEUE_TRIES` | `3` | Retry attempts for the queued listener. |
+| `queue.timeout` | `LARAVEL_REWIND_QUEUE_TIMEOUT` | `60` | Timeout (seconds) for the queued listener. |
+| `queue.backoff` | -- | `[2, 10, 30]` | Backoff delays (seconds) between retries. |
+
+### Migration Notes
+
+This release adds two new nullable columns to the `rewind_versions` table: `event_type` (string) and `meta` (json).
+
+**New installations** get these columns automatically via the existing migration.
+
+**Existing installations** should publish and run the new upgrade migration:
+
+```bash
+php artisan vendor:publish --tag="laravel-rewind-migrations"
+php artisan migrate
+```
+
+The upgrade migration is idempotent — it checks for existing columns before adding them, so it's safe to run even if you've already added the columns manually.
+
+**Full Changelog**: https://github.com/avocet-shores/laravel-rewind/compare/v0.7.4...v0.8.0
+
 ## v0.7.4 - 2025-11-07
 
 ### What's Changed

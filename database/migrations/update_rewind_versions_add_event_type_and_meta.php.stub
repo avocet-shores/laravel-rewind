@@ -1,0 +1,37 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        $tableName = config('rewind.table_name', 'rewind_versions');
+
+        $hasEventType = Schema::hasColumn($tableName, 'event_type');
+        $hasMeta = Schema::hasColumn($tableName, 'meta');
+
+        if ($hasEventType && $hasMeta) {
+            return;
+        }
+
+        Schema::table($tableName, function (Blueprint $table) use ($hasEventType, $hasMeta) {
+            if (! $hasEventType) {
+                $table->string('event_type')->nullable();
+            }
+
+            if (! $hasMeta) {
+                $table->json('meta')->nullable();
+            }
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table(config('rewind.table_name', 'rewind_versions'), function (Blueprint $table) {
+            $table->dropColumn(['event_type', 'meta']);
+        });
+    }
+};

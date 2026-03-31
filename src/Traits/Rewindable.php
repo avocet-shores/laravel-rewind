@@ -2,8 +2,10 @@
 
 namespace AvocetShores\LaravelRewind\Traits;
 
+use AvocetShores\LaravelRewind\Enums\VersionEventType;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
+use AvocetShores\LaravelRewind\Services\RewindContext;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -65,7 +67,7 @@ trait Rewindable
                 $model->setAttribute($deletedAtColumn, null);
                 $model->syncOriginalAttributes([$deletedAtColumn]);
                 $model->setAttribute($deletedAtColumn, $deletedAt);
-                $model->dispatchRewindEvent();
+                $model->dispatchRewindEvent(VersionEventType::Deleted);
                 // Restore proper state so subsequent operations (e.g. restore) see
                 // the correct original deleted_at value.
                 $model->syncOriginalAttributes([$deletedAtColumn]);
@@ -81,7 +83,7 @@ trait Rewindable
         return in_array(SoftDeletes::class, class_uses_recursive($this));
     }
 
-    protected function dispatchRewindEvent(): void
+    protected function dispatchRewindEvent(?VersionEventType $eventType = null): void
     {
         // If the model signals it does not want Rewindable events, skip
         if (! empty($this->disableRewindEvents)) {
@@ -111,11 +113,25 @@ trait Rewindable
             }
         }
 
+        // Determine event type if not explicitly provided.
+        // We default to null here rather than checking wasRecentlyCreated, because
+        // wasRecentlyCreated stays true on the model instance after the initial create,
+        // causing subsequent updates on the same object to also appear as "created".
+        // The listener determines Created vs Updated using the version number instead.
+        if ($eventType === null) {
+            $eventType = VersionEventType::Updated;
+        }
+
+        // Read metadata from the context singleton and clear it
+        $meta = app(RewindContext::class)->flush();
+
         // Capture transient model state now so it survives serialization for queued listeners
         event(new RewindVersionCreating(
             model: $this,
             changes: $changedAttributes,
             wasRecentlyCreated: $this->wasRecentlyCreated,
+            eventType: $eventType,
+            meta: $meta,
         ));
     }
 
