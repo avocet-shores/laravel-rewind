@@ -66,9 +66,9 @@ it('clears batch uuid even when callback throws', function () {
 
     try {
         Rewind::batch(function () {
-            throw new \RuntimeException('Something went wrong');
+            throw new RuntimeException('Something went wrong');
         });
-    } catch (\RuntimeException) {
+    } catch (RuntimeException) {
         // Expected
     }
 
@@ -128,7 +128,7 @@ it('throws when nesting batch calls', function () {
             // This should throw
         });
     });
-})->throws(\LogicException::class);
+})->throws(LogicException::class);
 
 it('assigns batch_uuid to creation versions within a batch', function () {
     $batchUuid = Rewind::batch(function () {

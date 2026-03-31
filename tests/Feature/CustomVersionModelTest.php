@@ -29,10 +29,10 @@ it('resolves a custom version model class from config', function () {
 });
 
 it('rejects a non-subclass with InvalidArgumentException', function () {
-    config()->set('rewind.version_model', \stdClass::class);
+    config()->set('rewind.version_model', stdClass::class);
 
     RewindVersion::resolveVersionModelClass();
-})->throws(\InvalidArgumentException::class);
+})->throws(InvalidArgumentException::class);
 
 it('creates version records using the custom model', function () {
     config()->set('rewind.version_model', CustomRewindVersion::class);
