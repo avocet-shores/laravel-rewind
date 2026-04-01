@@ -346,3 +346,85 @@ it('returns getRewindStateFields from the model', function () {
     $post = new Post;
     expect($post->getRewindStateFields())->toBe([]);
 });
+
+it('whereStateWas does not match versions where the field did not transition', function () {
+    $order = Order::create([
+        'user_id' => $this->user->id,
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+        'total' => 100,
+    ]);
+
+    // v2: only payment_status changes, not status
+    $order->update(['payment_status' => 'paid']);
+
+    // whereStateWas on 'status' should NOT match v2 (status didn't transition)
+    $versions = $order->versions()->whereStateWas('status', 'pending')->get();
+
+    // Only v1 (create) should match — status transitioned from null, not from 'pending'
+    // So this should return 0 results
+    expect($versions)->toHaveCount(0);
+});
+
+it('whereStateBecame does not match versions where the field did not transition', function () {
+    $order = Order::create([
+        'user_id' => $this->user->id,
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+        'total' => 100,
+    ]);
+
+    // v2: only payment_status changes
+    $order->update(['payment_status' => 'paid']);
+
+    // whereStateBecame on 'status' for 'pending' should only match v1 (create)
+    $versions = $order->versions()->whereStateBecame('status', 'pending')->get();
+
+    expect($versions)->toHaveCount(1);
+    expect($versions->first()->version)->toBe(1);
+
+    // whereStateBecame for 'paid' on 'status' should match nothing
+    $versions = $order->versions()->whereStateBecame('status', 'paid')->get();
+    expect($versions)->toHaveCount(0);
+});
+
+it('records state transition to empty string when clearing a state field', function () {
+    $order = Order::create([
+        'user_id' => $this->user->id,
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+        'total' => 100,
+    ]);
+
+    $order->update(['status' => '']);
+
+    $version = $order->versions()->where('version', 2)->first();
+
+    expect($version->state_transitions)->toBe([
+        'status' => ['from' => 'pending', 'to' => ''],
+    ]);
+});
+
+it('records state transitions on restore', function () {
+    $order = Order::create([
+        'user_id' => $this->user->id,
+        'status' => 'pending',
+        'payment_status' => 'unpaid',
+        'total' => 100,
+    ]);
+
+    $order->update(['status' => 'shipped', 'payment_status' => 'paid']);
+
+    // Restore to v1 (pending/unpaid)
+    Rewind::restore($order, 1);
+
+    $order->refresh();
+
+    $restoreVersion = $order->versions()->where('version', 3)->first();
+
+    expect($restoreVersion->state_transitions)->toBe([
+        'status' => ['from' => 'shipped', 'to' => 'pending'],
+        'payment_status' => ['from' => 'paid', 'to' => 'unpaid'],
+    ]);
+    expect($restoreVersion->meta['restored_from_version'])->toBe(1);
+});

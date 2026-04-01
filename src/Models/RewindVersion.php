@@ -194,7 +194,8 @@ class RewindVersion extends Model
      */
     public function scopeWhereStateWas(Builder $query, string $field, mixed $state): Builder
     {
-        return $query->where("state_transitions->{$field}->from", $state);
+        return $query->whereNotNull("state_transitions->{$field}")
+            ->where("state_transitions->{$field}->from", $state);
     }
 
     /**
@@ -202,7 +203,8 @@ class RewindVersion extends Model
      */
     public function scopeWhereStateBecame(Builder $query, string $field, mixed $state): Builder
     {
-        return $query->where("state_transitions->{$field}->to", $state);
+        return $query->whereNotNull("state_transitions->{$field}")
+            ->where("state_transitions->{$field}->to", $state);
     }
 
     /**
