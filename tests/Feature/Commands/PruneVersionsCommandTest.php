@@ -155,10 +155,6 @@ it('never deletes the latest version', function () {
 });
 
 it('shows per-model-type breakdown when pruning multiple model types', function () {
-    Schema::table('templates', function (Blueprint $table) {
-        $table->unsignedBigInteger('current_version')->nullable();
-    });
-
     $post = Post::create(['user_id' => $this->user->id, 'title' => 'v1', 'body' => 'body']);
     for ($i = 2; $i <= 6; $i++) {
         $post->update(['title' => "v{$i}"]);

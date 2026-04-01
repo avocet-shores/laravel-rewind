@@ -476,3 +476,24 @@ it('count ignores limit', function () {
 
     expect($count)->toBe(3);
 });
+
+it('first() does not permanently mutate the builder limit', function () {
+    Post::create(['user_id' => $this->user->id, 'title' => 'Post 1', 'body' => 'Body']);
+    Post::create(['user_id' => $this->user->id, 'title' => 'Post 2', 'body' => 'Body']);
+    Post::create(['user_id' => $this->user->id, 'title' => 'Post 3', 'body' => 'Body']);
+
+    $post = Post::first();
+    RewindVersion::where('model_type', $post->getMorphClass())
+        ->where('version', 1)
+        ->update(['created_at' => now()->subHours(3)]);
+
+    $builder = Post::asOf(now()->subHours(2));
+
+    // Call first() — should not permanently set limit to 1
+    $first = $builder->first();
+    expect($first)->not->toBeNull();
+
+    // Subsequent get() should still return all models
+    $all = $builder->get();
+    expect($all)->toHaveCount(3);
+});

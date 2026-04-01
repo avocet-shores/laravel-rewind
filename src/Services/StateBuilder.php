@@ -69,7 +69,8 @@ class StateBuilder
 
         $versionModelClass = RewindVersion::resolveVersionModelClass();
 
-        // Load all versions for all requested models in one query
+        // Load all versions for all requested models in one query.
+        // Use groupBy('model_id') which preserves the DB driver's native type.
         $allVersions = $versionModelClass::query()
             ->where('model_type', $modelType)
             ->whereIn('model_id', array_keys($modelVersionMap))

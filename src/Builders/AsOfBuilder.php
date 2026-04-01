@@ -78,12 +78,15 @@ class AsOfBuilder
         $versionModelClass = RewindVersion::resolveVersionModelClass();
 
         // 1. Find the target version for each model_id (max version where created_at <= timestamp)
+        //    Cast target_version to int since version numbers are always integers.
+        //    model_id keys retain their native database type (int or string/UUID).
         $targetVersions = $versionModelClass::query()
             ->where('model_type', $modelType)
             ->where('created_at', '<=', $this->timestamp)
             ->selectRaw('model_id, MAX(version) as target_version')
             ->groupBy('model_id')
-            ->pluck('target_version', 'model_id');
+            ->pluck('target_version', 'model_id')
+            ->map(fn ($version) => (int) $version);
 
         if ($targetVersions->isEmpty()) {
             return new Collection;
@@ -97,7 +100,9 @@ class AsOfBuilder
             ->where('event_type', VersionEventType::Deleted)
             ->get()
             ->filter(function ($record) use ($targetVersions) {
-                return $record->version == $targetVersions[$record->model_id];
+                // Use loose comparison: model_id may be int or string depending on DB driver
+                return $targetVersions->has($record->model_id)
+                    && $record->version == $targetVersions->get($record->model_id);
             })
             ->pluck('model_id')
             ->all();
@@ -120,10 +125,12 @@ class AsOfBuilder
 
         // 5. Hydrate model instances
         $models = new Collection;
+        $keyName = $modelInstance->getKeyName();
+        $castKeyToInt = $modelInstance->getKeyType() === 'int';
         foreach ($reconstructedStates as $modelId => $attributes) {
             $model = $modelInstance->newInstance([], true);
             $model->setRawAttributes(array_merge(
-                [$modelInstance->getKeyName() => $modelId],
+                [$keyName => $castKeyToInt ? (int) $modelId : $modelId],
                 $attributes,
             ), true);
 
@@ -159,7 +166,14 @@ class AsOfBuilder
      */
     public function first(): ?Model
     {
-        return $this->limit(1)->get()->first();
+        $originalLimit = $this->limitValue;
+        $this->limitValue = 1;
+
+        $result = $this->get()->first();
+
+        $this->limitValue = $originalLimit;
+
+        return $result;
     }
 
     /**

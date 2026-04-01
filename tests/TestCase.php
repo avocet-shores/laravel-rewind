@@ -82,6 +82,7 @@ class TestCase extends Orchestra
             $table->id();
             $table->string('name');
             $table->text('content');
+            $table->unsignedBigInteger('current_version')->nullable();
             $table->softDeletes();
             $table->timestamps();
         });
