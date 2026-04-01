@@ -4,9 +4,7 @@ use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
 use AvocetShores\LaravelRewind\Tests\Models\Template;
 use AvocetShores\LaravelRewind\Tests\Models\User;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Schema;
 
 use function Pest\Laravel\artisan;
 
