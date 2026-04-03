@@ -172,13 +172,6 @@ class Order extends Model
 
 Only fields listed in `$rewindStateFields` are tracked as transitions. All other attributes continue to be versioned normally.
 
-> If you're adding state tracking to an existing Rewind installation, publish and run the new migration:
->
-> ```bash
-> php artisan vendor:publish --provider="AvocetShores\LaravelRewind\LaravelRewindServiceProvider"
-> php artisan migrate
-> ```
-
 ### Querying transitions
 
 ```php
