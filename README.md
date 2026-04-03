@@ -155,7 +155,7 @@ RewindVersion::forModel($post)
 
 ## Tracking State Transitions
 
-If your model has fields that represent state — like an order's status or payment status — Rewind can track each transition structurally. This gives you a queryable history of when and how states changed, separate from general attribute versioning.
+If your model has fields that represent state (like an order's status or payment status), Rewind can track each transition structurally. You get a queryable history of when and how states changed, separate from general attribute versioning.
 
 ### Define state fields
 
@@ -188,7 +188,7 @@ $order->versions()->whereStateChanged('status')->get();
 $order->versions()->whereStateTransition('status', 'pending', 'shipped')->get();
 ```
 
-`whereStateTransition` supports wildcards — pass `null` for either direction to match any value:
+`whereStateTransition` supports wildcards. Pass `null` for either direction to match any value:
 
 ```php
 // Any transition that ended at 'shipped', regardless of where it came from
