@@ -16,6 +16,7 @@ use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class RewindManager implements RewindManagerInterface
@@ -261,6 +262,65 @@ class RewindManager implements RewindManagerInterface
         $toAttrs = $this->getVersionAttributes($model, $toVersion);
 
         return VersionDiff::fromAttributes($fromAttrs, $toAttrs);
+    }
+
+    /**
+     * Iterate through version history with fully reconstructed state at each step.
+     *
+     * @throws ModelNotRewindableException
+     * @throws VersionDoesNotExistException
+     * @throws CurrentVersionColumnMissingException
+     */
+    public function replay(Model $model, int $fromVersion, int $toVersion, callable $callback): Collection
+    {
+        $this->assertRewindable($model);
+        $this->eagerLoadVersions($model);
+
+        $versions = $model->versions; // @phpstan-ignore property.notFound
+
+        // Validate both endpoints exist
+        if (! $versions->where('version', $fromVersion)->first()) {
+            throw new VersionDoesNotExistException('The specified version does not exist.');
+        }
+        if (! $versions->where('version', $toVersion)->first()) {
+            throw new VersionDoesNotExistException('The specified version does not exist.');
+        }
+
+        $currentVersion = $this->determineCurrentVersion($model);
+        $currentAttributes = Arr::except(
+            $model->attributesToArray(),
+            $model->getExcludedRewindableAttributes() // @phpstan-ignore method.notFound
+        );
+
+        $stateMap = $this->stateBuilder->buildStateSequence(
+            versions: $versions,
+            currentVersion: $currentVersion,
+            fromVersion: $fromVersion,
+            toVersion: $toVersion,
+            currentAttributes: $currentAttributes,
+        );
+
+        $results = [];
+        $min = min($fromVersion, $toVersion);
+        $max = max($fromVersion, $toVersion);
+
+        $versionRecords = $versions
+            ->where('version', '>=', $min)
+            ->where('version', '<=', $max);
+
+        if ($fromVersion <= $toVersion) {
+            $versionRecords = $versionRecords->sortBy('version');
+        } else {
+            $versionRecords = $versionRecords->sortByDesc('version');
+        }
+
+        foreach ($versionRecords as $versionRec) {
+            if (isset($stateMap[$versionRec->version])) {
+                $results[] = $callback($versionRec, $stateMap[$versionRec->version]);
+            }
+        }
+
+        return collect($results);
     }
 
     /**

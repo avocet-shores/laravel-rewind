@@ -78,6 +78,68 @@ class StateBuilder
     }
 
     /**
+     * Build reconstructed state at each version in a range, stepping incrementally.
+     *
+     * Reconstructs state at $fromVersion once (using ApproachEngine), then steps
+     * through each subsequent version applying diffs to capture intermediate states.
+     *
+     * @return array<int, array> Reconstructed attributes keyed by version number
+     */
+    public function buildStateSequence(
+        Collection $versions,
+        int $currentVersion,
+        int $fromVersion,
+        int $toVersion,
+        array $currentAttributes = [],
+    ): array {
+        $startState = $this->buildStateForVersion(
+            $versions, $currentVersion, $fromVersion, $currentAttributes,
+        );
+
+        $states = [$fromVersion => $startState];
+
+        if ($fromVersion === $toVersion) {
+            return $states;
+        }
+
+        $attributes = $startState;
+
+        if ($fromVersion < $toVersion) {
+            $steppingVersions = $versions
+                ->where('version', '>', $fromVersion)
+                ->where('version', '<=', $toVersion)
+                ->sortBy('version');
+
+            foreach ($steppingVersions as $versionRec) {
+                $attributes = array_merge($attributes, $versionRec->new_values ?? []);
+                $states[$versionRec->version] = $attributes;
+            }
+        } else {
+            // Stepping backward: apply old_values from each version to undo it.
+            // Applying version N's old_values produces the state at version N-1.
+            $steppingVersions = $versions
+                ->where('version', '>', $toVersion)
+                ->where('version', '<=', $fromVersion)
+                ->sortByDesc('version');
+
+            foreach ($steppingVersions as $versionRec) {
+                $attributes = array_merge($attributes, $versionRec->old_values ?? []);
+                $previousVersion = $versions
+                    ->where('version', '<', $versionRec->version)
+                    ->where('version', '>=', $toVersion)
+                    ->sortByDesc('version')
+                    ->first();
+
+                if ($previousVersion) {
+                    $states[$previousVersion->version] = $attributes;
+                }
+            }
+        }
+
+        return $states;
+    }
+
+    /**
      * Step through version diffs from one version to another, applying
      * old_values (backward) or new_values (forward) as appropriate.
      *
