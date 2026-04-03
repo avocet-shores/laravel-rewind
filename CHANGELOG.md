@@ -2,6 +2,21 @@
 
 All notable changes to `laravel-rewind` will be documented in this file.
 
+## v0.10.0 - Unreleased
+
+### New Features
+
+* **State transition tracking** -- Designate fields as state fields via `$rewindStateFields` on your model. Rewind records structured `from`/`to` transitions alongside each version. Query with `whereStateBecame()`, `whereStateWas()`, `whereStateChanged()`, and `whereStateTransition()` scopes, or get a full timeline with `$model->stateHistory($field)`.
+
+### Migration
+
+New `state_transitions` column on the versions table. Publish and run:
+
+```bash
+php artisan vendor:publish --provider="AvocetShores\LaravelRewind\LaravelRewindServiceProvider"
+php artisan migrate
+```
+
 ## v0.9.0 - Unreleased
 
 ### New Features

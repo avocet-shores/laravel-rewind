@@ -153,6 +153,73 @@ RewindVersion::forModel($post)
     ->get();
 ```
 
+## Tracking State Transitions
+
+If your model has fields that represent state (like an order's status or payment status), Rewind can track each transition structurally. You get a queryable history of when and how states changed, separate from general attribute versioning.
+
+### Define state fields
+
+```php
+use AvocetShores\LaravelRewind\Traits\Rewindable;
+
+class Order extends Model
+{
+   use Rewindable;
+
+   protected array $rewindStateFields = ['status', 'payment_status'];
+}
+```
+
+Only fields listed in `$rewindStateFields` are tracked as transitions. All other attributes continue to be versioned normally.
+
+### Querying transitions
+
+```php
+// Find versions where status became 'shipped'
+$order->versions()->whereStateBecame('status', 'shipped')->get();
+
+// Find versions where status transitioned away from 'pending'
+$order->versions()->whereStateWas('status', 'pending')->get();
+
+// Find every version where status changed at all
+$order->versions()->whereStateChanged('status')->get();
+
+// Match an exact from/to transition
+$order->versions()->whereStateTransition('status', 'pending', 'shipped')->get();
+```
+
+`whereStateTransition` supports wildcards. Pass `null` for either direction to match any value:
+
+```php
+// Any transition that ended at 'shipped', regardless of where it came from
+$order->versions()->whereStateTransition('status', null, 'shipped')->get();
+```
+
+These compose with existing scopes:
+
+```php
+$order->versions()
+    ->whereStateBecame('status', 'shipped')
+    ->byUser($userId)
+    ->get();
+```
+
+### State history
+
+Get a clean timeline of transitions for a specific field:
+
+```php
+$history = $order->stateHistory('status');
+
+// [
+//     ['version' => 1, 'from' => null,       'to' => 'pending',    'created_at' => ...],
+//     ['version' => 2, 'from' => 'pending',   'to' => 'processing', 'created_at' => ...],
+//     ['version' => 3, 'from' => 'processing', 'to' => 'shipped',   'created_at' => ...],
+// ]
+```
+
+> State transitions work with amend mode. If multiple changes to a state field happen inside `amendCurrentVersion`, the transition collapses to the original `from` and the final `to`.
+
 ## Controlling What's Tracked
 
 ### Exclude attributes

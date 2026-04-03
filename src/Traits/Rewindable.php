@@ -10,6 +10,7 @@ use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -188,9 +189,23 @@ trait Rewindable
             $newValues[$attribute] = $this->handleDateAttributeForAmend($this->getAttribute($attribute));
         }
 
+        // Recalculate state transitions for the amended version
+        $stateTransitions = $currentVersion->state_transitions ?? [];
+        $stateFields = $this->getRewindStateFields();
+        foreach ($stateFields as $field) {
+            if (array_key_exists($field, $newValues)) {
+                $stateTransitions[$field] = [
+                    // Preserve original 'from' if this field was already tracked
+                    'from' => $stateTransitions[$field]['from'] ?? ($oldValues[$field] ?? null),
+                    'to' => $newValues[$field],
+                ];
+            }
+        }
+
         $currentVersion->update([
             'old_values' => $oldValues,
             'new_values' => $newValues,
+            'state_transitions' => $stateTransitions ?: null,
         ]);
     }
 
@@ -260,6 +275,40 @@ trait Rewindable
     public function enableRewindEvents(): void
     {
         $this->disableRewindEvents = false;
+    }
+
+    /**
+     * Get the fields designated as state fields for transition tracking.
+     * Override by defining a $rewindStateFields property on your model.
+     */
+    public function getRewindStateFields(): array
+    {
+        return property_exists($this, 'rewindStateFields')
+            ? $this->rewindStateFields
+            : [];
+    }
+
+    /**
+     * Get the state transition history for a specific field.
+     */
+    public function stateHistory(string $field): Collection
+    {
+        return $this->versions() // @phpstan-ignore method.notFound
+            ->whereStateChanged($field)
+            ->orderBy('version')
+            ->get()
+            ->map(function (RewindVersion $version) use ($field) {
+                $transition = $version->state_transitions[$field] ?? null;
+
+                return $transition ? [
+                    'version' => $version->version,
+                    'from' => $transition['from'],
+                    'to' => $transition['to'],
+                    'created_at' => $version->created_at,
+                ] : null;
+            })
+            ->filter()
+            ->values();
     }
 
     /**

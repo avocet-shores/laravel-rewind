@@ -92,6 +92,9 @@ class CreateRewindVersion
                 return;
             }
 
+            // Extract state transitions for designated state fields
+            $stateTransitions = $this->extractStateTransitions($model, $oldValues, $newValues);
+
             // Check if the snapshot interval triggers a mandatory snapshot
             $interval = config('rewind.snapshot_interval', 10);
             if (! $isSnapshot) {
@@ -120,7 +123,7 @@ class CreateRewindVersion
             $rewindVersion = DB::connection($connection)->transaction(function () use (
                 $model, $nextVersion, $oldValues, $newValues, $isSnapshot,
                 $morphClass, $modelKey, $trackUser, $hasCurrentVersionColumn,
-                $eventType, $meta, $batchUuid
+                $eventType, $meta, $batchUuid, $stateTransitions
             ) {
                 // Create the RewindVersion record
                 $versionModelClass = RewindVersion::resolveVersionModelClass();
@@ -134,6 +137,7 @@ class CreateRewindVersion
                     'is_snapshot' => $isSnapshot,
                     'event_type' => $eventType,
                     'meta' => $meta ?: null,
+                    'state_transitions' => $stateTransitions ?: null,
                     'batch_uuid' => $batchUuid,
                 ]);
 
@@ -225,6 +229,34 @@ class CreateRewindVersion
         }
 
         return array_unique($attributes);
+    }
+
+    /**
+     * Extract state transition data for designated state fields.
+     */
+    protected function extractStateTransitions(Model $model, array $oldValues, array $newValues): array
+    {
+        if (! method_exists($model, 'getRewindStateFields')) {
+            return [];
+        }
+
+        $stateFields = $model->getRewindStateFields();
+        if (empty($stateFields)) {
+            return [];
+        }
+
+        $transitions = [];
+        foreach ($stateFields as $field) {
+            // Only record a transition if this field actually changed in this version
+            if (array_key_exists($field, $oldValues) || array_key_exists($field, $newValues)) {
+                $transitions[$field] = [
+                    'from' => $oldValues[$field] ?? null,
+                    'to' => $newValues[$field] ?? null,
+                ];
+            }
+        }
+
+        return $transitions;
     }
 
     protected function handleDateAttribute($value): mixed
