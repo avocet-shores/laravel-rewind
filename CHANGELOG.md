@@ -9,10 +9,11 @@ All notable changes to `laravel-rewind` will be documented in this file.
 * **Batch versioning** -- `Rewind::batch(fn)` groups multiple model changes under a shared `batch_uuid`. Query with `RewindVersion::inBatch($uuid)`.
 * **Non-destructive restore** -- `Rewind::restore($model, $version)` creates a new version from a previous version's state. Tracks `VersionEventType::Restored` and stores `restored_from_version` in meta.
 * **Custom version model** -- Set `version_model` in config to extend `RewindVersion` with custom columns, scopes, or accessors.
+* **State transition tracking** -- Designate fields as state fields via `$rewindStateFields` on your model. Rewind records structured `from`/`to` transitions alongside each version. Query with `whereStateBecame()`, `whereStateWas()`, `whereStateChanged()`, and `whereStateTransition()` scopes, or get a full timeline with `$model->stateHistory($field)`.
 
 ### Migration
 
-New `batch_uuid` column on the versions table. Publish and run:
+New `batch_uuid` and `state_transitions` columns on the versions table. Publish and run:
 
 ```bash
 php artisan vendor:publish --tag=laravel-rewind-migrations
