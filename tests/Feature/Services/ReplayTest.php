@@ -8,6 +8,7 @@ use AvocetShores\LaravelRewind\Tests\Models\Post;
 use AvocetShores\LaravelRewind\Tests\Models\PostThatIsNotRewindable;
 use AvocetShores\LaravelRewind\Tests\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 
 uses(RefreshDatabase::class);
 
@@ -61,7 +62,7 @@ it('collects callback return values into a Collection', function () {
         return 'v'.$version->version.':'.$attributes['title'];
     });
 
-    expect($result)->toBeInstanceOf(\Illuminate\Support\Collection::class);
+    expect($result)->toBeInstanceOf(Collection::class);
     expect($result->all())->toBe([
         'v1:V1',
         'v2:V2',
