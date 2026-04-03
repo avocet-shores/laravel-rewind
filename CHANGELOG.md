@@ -7,6 +7,7 @@ All notable changes to `laravel-rewind` will be documented in this file.
 ### New Features
 
 * **State transition tracking** -- Designate fields as state fields via `$rewindStateFields` on your model. Rewind records structured `from`/`to` transitions alongside each version. Query with `whereStateBecame()`, `whereStateWas()`, `whereStateChanged()`, and `whereStateTransition()` scopes, or get a full timeline with `$model->stateHistory($field)`.
+* **Replay API** -- `Rewind::replay($model, $from, $to, $callback)` iterates through version history with fully reconstructed state at each step. Supports forward and reverse replay. Callback return values are collected into a `Collection`. State is built incrementally for performance.
 
 ### Migration
 
