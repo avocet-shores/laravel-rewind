@@ -143,6 +143,51 @@ it('works correctly across snapshot boundaries', function () {
     }
 });
 
+it('supports reverse replay across snapshot boundaries', function () {
+    config()->set('rewind.snapshot_interval', 3);
+
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'V1', 'body' => 'Body']);
+
+    for ($i = 2; $i <= 12; $i++) {
+        $post->update(['title' => "V{$i}"]);
+    }
+
+    $collected = [];
+    Rewind::replay($post, 12, 1, function (RewindVersion $version, array $attributes) use (&$collected) {
+        $collected[$version->version] = $attributes['title'];
+    });
+
+    expect($collected)->toHaveCount(12);
+    for ($i = 1; $i <= 12; $i++) {
+        expect($collected[$i])->toBe("V{$i}");
+    }
+});
+
+it('skips pruned versions in the range', function () {
+    $post = Post::create(['user_id' => $this->user->id, 'title' => 'V1', 'body' => 'Body']);
+    $post->update(['title' => 'V2']);
+    $post->update(['title' => 'V3']);
+    $post->update(['title' => 'V4']);
+    $post->update(['title' => 'V5']);
+
+    // Simulate pruning by deleting version records 2 and 3
+    RewindVersion::where('model_type', $post->getMorphClass())
+        ->where('model_id', $post->getKey())
+        ->whereIn('version', [2, 3])
+        ->delete();
+
+    $collected = [];
+    Rewind::replay($post, 1, 5, function (RewindVersion $version, array $attributes) use (&$collected) {
+        $collected[$version->version] = $attributes['title'];
+    });
+
+    // Only versions 1, 4, 5 remain; pruned versions are skipped
+    expect($collected)->toHaveCount(3);
+    expect($collected)->toHaveKeys([1, 4, 5]);
+    expect($collected[1])->toBe('V1');
+    expect($collected[5])->toBe('V5');
+});
+
 it('does not mutate the model', function () {
     $post = Post::create(['user_id' => $this->user->id, 'title' => 'V1 Title', 'body' => 'V1 Body']);
     $post->update(['title' => 'V2 Title']);

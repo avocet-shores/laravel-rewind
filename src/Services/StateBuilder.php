@@ -117,21 +117,26 @@ class StateBuilder
         } else {
             // Stepping backward: apply old_values from each version to undo it.
             // Applying version N's old_values produces the state at version N-1.
-            $steppingVersions = $versions
-                ->where('version', '>', $toVersion)
+            // Pre-collect version numbers in ascending order so we can map each
+            // version to its predecessor via index lookup (O(n) total, not O(n^2)).
+            $rangeVersions = $versions
+                ->where('version', '>=', $toVersion)
                 ->where('version', '<=', $fromVersion)
-                ->sortByDesc('version');
+                ->sortBy('version')
+                ->values();
+
+            $indexByVersion = $rangeVersions->mapWithKeys(
+                fn ($v, $i) => [$v->version => $i]
+            );
+
+            $steppingVersions = $rangeVersions->reverse();
 
             foreach ($steppingVersions as $versionRec) {
                 $attributes = array_merge($attributes, $versionRec->old_values ?? []);
-                $previousVersion = $versions
-                    ->where('version', '<', $versionRec->version)
-                    ->where('version', '>=', $toVersion)
-                    ->sortByDesc('version')
-                    ->first();
+                $idx = $indexByVersion[$versionRec->version];
 
-                if ($previousVersion) {
-                    $states[$previousVersion->version] = $attributes;
+                if ($idx > 0) {
+                    $states[$rangeVersions[$idx - 1]->version] = $attributes;
                 }
             }
         }
