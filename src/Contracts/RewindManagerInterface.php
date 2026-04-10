@@ -10,6 +10,7 @@ use AvocetShores\LaravelRewind\Exceptions\VersionDoesNotExistException;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 interface RewindManagerInterface
 {
@@ -99,4 +100,14 @@ interface RewindManagerInterface
      * instead of creating new version records.
      */
     public function amendCurrentVersion(callable $callback): mixed;
+
+    /**
+     * Iterate through version history with fully reconstructed state at each step.
+     * Callback return values are collected into the returned Collection.
+     *
+     * @throws ModelNotRewindableException
+     * @throws VersionDoesNotExistException
+     * @throws CurrentVersionColumnMissingException
+     */
+    public function replay(Model $model, int $fromVersion, int $toVersion, callable $callback): Collection;
 }

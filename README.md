@@ -120,6 +120,31 @@ $diff->isEmpty(); // false
 
 Works in either direction. `diff($post, 5, 1)` swaps old and new.
 
+### Replay through history
+
+Walk through a range of versions with the fully reconstructed state at each step:
+
+```php
+Rewind::replay($post, 1, 10, function (RewindVersion $version, array $attributes) {
+    // $version is the RewindVersion record (with meta, event_type, etc.)
+    // $attributes is the complete model state at that version
+});
+```
+
+Callback return values are collected into a `Collection`, so you can use it as a map:
+
+```php
+$titles = Rewind::replay($post, 1, 10, function (RewindVersion $version, array $attributes) {
+    return $attributes['title'];
+});
+
+// Collection(['Draft', 'Review', 'Published', ...])
+```
+
+Works in reverse too. `replay($post, 10, 1)` walks backward from v10 to v1.
+
+State is reconstructed incrementally, not independently per version, so this stays fast even over large ranges.
+
 ### Build a specific version's attributes
 
 Diffs don't always contain all the data for a version. This method reconstructs the full attribute set:

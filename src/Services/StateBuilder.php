@@ -78,6 +78,73 @@ class StateBuilder
     }
 
     /**
+     * Build reconstructed state at each version in a range, stepping incrementally.
+     *
+     * Reconstructs state at $fromVersion once (using ApproachEngine), then steps
+     * through each subsequent version applying diffs to capture intermediate states.
+     *
+     * @return array<int, array> Reconstructed attributes keyed by version number
+     */
+    public function buildStateSequence(
+        Collection $versions,
+        int $currentVersion,
+        int $fromVersion,
+        int $toVersion,
+        array $currentAttributes = [],
+    ): array {
+        $startState = $this->buildStateForVersion(
+            $versions, $currentVersion, $fromVersion, $currentAttributes,
+        );
+
+        $states = [$fromVersion => $startState];
+
+        if ($fromVersion === $toVersion) {
+            return $states;
+        }
+
+        $attributes = $startState;
+
+        if ($fromVersion < $toVersion) {
+            $steppingVersions = $versions
+                ->where('version', '>', $fromVersion)
+                ->where('version', '<=', $toVersion)
+                ->sortBy('version');
+
+            foreach ($steppingVersions as $versionRec) {
+                $attributes = array_merge($attributes, $versionRec->new_values ?? []);
+                $states[$versionRec->version] = $attributes;
+            }
+        } else {
+            // Stepping backward: apply old_values from each version to undo it.
+            // Applying version N's old_values produces the state at version N-1.
+            // Pre-collect version numbers in ascending order so we can map each
+            // version to its predecessor via index lookup (O(n) total, not O(n^2)).
+            $rangeVersions = $versions
+                ->where('version', '>=', $toVersion)
+                ->where('version', '<=', $fromVersion)
+                ->sortBy('version')
+                ->values();
+
+            $indexByVersion = $rangeVersions->mapWithKeys(
+                fn ($v, $i) => [$v->version => $i]
+            );
+
+            $steppingVersions = $rangeVersions->reverse();
+
+            foreach ($steppingVersions as $versionRec) {
+                $attributes = array_merge($attributes, $versionRec->old_values ?? []);
+                $idx = $indexByVersion[$versionRec->version];
+
+                if ($idx > 0) {
+                    $states[$rangeVersions[$idx - 1]->version] = $attributes;
+                }
+            }
+        }
+
+        return $states;
+    }
+
+    /**
      * Step through version diffs from one version to another, applying
      * old_values (backward) or new_values (forward) as appropriate.
      *
