@@ -4,6 +4,7 @@ use AvocetShores\LaravelRewind\Exceptions\AsOfBuilderUsageException;
 use AvocetShores\LaravelRewind\Exceptions\ReconstructedModelIsReadOnlyException;
 use AvocetShores\LaravelRewind\Facades\Rewind;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
+use AvocetShores\LaravelRewind\Services\ApproachEngine;
 use AvocetShores\LaravelRewind\Services\StateBuilder;
 use AvocetShores\LaravelRewind\Tests\Models\Post;
 use AvocetShores\LaravelRewind\Tests\Models\Template;
@@ -705,7 +706,7 @@ it('memoises reconstruction across count() and get()', function () {
     RewindVersion::where('model_id', $post->getKey())
         ->update(['created_at' => now()->subHours(3)]);
 
-    $spy = new class(app(\AvocetShores\LaravelRewind\Services\ApproachEngine::class)) extends StateBuilder
+    $spy = new class(app(ApproachEngine::class)) extends StateBuilder
     {
         public int $calls = 0;
 
@@ -731,7 +732,7 @@ it('invalidates reconstruction cache when a where is added', function () {
     RewindVersion::where('model_id', $post->getKey())
         ->update(['created_at' => now()->subHours(3)]);
 
-    $spy = new class(app(\AvocetShores\LaravelRewind\Services\ApproachEngine::class)) extends StateBuilder
+    $spy = new class(app(ApproachEngine::class)) extends StateBuilder
     {
         public int $calls = 0;
 
