@@ -178,6 +178,83 @@ RewindVersion::forModel($post)
     ->get();
 ```
 
+## Point-in-Time Queries
+
+Reconstruct every instance of a model as it existed at a past timestamp:
+
+```php
+use AvocetShores\LaravelRewind\Facades\Rewind;
+
+Post::asOf(Carbon::parse('2025-01-15 14:00:00'))
+    ->where('status', 'published')
+    ->orderBy('created_at', 'desc')
+    ->limit(20)
+    ->get();
+
+// Equivalent via the facade
+Rewind::modelsAsOf(Post::class, Carbon::parse('2025-01-15 14:00:00'))
+    ->where('status', 'published')
+    ->get();
+```
+
+The builder walks each model's version history, reconstructs state from the nearest snapshot, and returns hydrated model instances. Soft-deleted and pruned models are handled automatically.
+
+### Filtering
+
+Filters are evaluated in PHP against the reconstructed attributes, not the live row:
+
+```php
+Post::asOf($timestamp)
+    ->where('title', 'like', '%Draft%')
+    ->whereIn('user_id', [1, 2, 3])
+    ->whereNull('published_at')
+    ->whereBetween('views', [100, 1000])
+    ->get();
+```
+
+Available: `where`, `whereIn`, `whereNotIn`, `whereNull`, `whereNotNull`, `whereBetween`, `whereNotBetween`, `orderBy`, `limit`, `take`.
+
+### Iterating large result sets
+
+```php
+// Process in slices — never holds more than $size models in memory
+Post::asOf($timestamp)->chunk(100, function ($posts) {
+    foreach ($posts as $post) {
+        // ...
+    }
+});
+
+// Stream one at a time
+foreach (Post::asOf($timestamp)->cursor() as $post) {
+    // ...
+}
+```
+
+`orderBy` is not compatible with `chunk` or `cursor` because ordering happens after reconstruction. Sort inside the callback or materialise via `get()`.
+
+### Caveats
+
+**Reconstructed models are read-only.** Calling `save()`, `update()`, or `delete()` on a point-in-time model raises `ReconstructedModelIsReadOnlyException` so that historical state cannot overwrite the live row. To persist a historical copy as a new row, use `replicate()`:
+
+```php
+$historical = Post::asOf($timestamp)->first();
+$copy = $historical->replicate();
+$copy->save(); // new row, fresh primary key
+```
+
+**Relations reflect the current state, not the timestamp.** `$reconstructedPost->user` returns the live user record, not the user as of the timestamp. Reconstruct related models separately:
+
+```php
+$post = Post::asOf($timestamp)->first();
+$user = User::asOf($timestamp)->where('id', $post->user_id)->first();
+```
+
+**Chain filters after `asOf`, not before.** `Post::where(...)->asOf($ts)` raises `AsOfBuilderUsageException` because the prior `where` would apply live-table semantics to reconstructed attributes. Always chain the other way:
+
+```php
+Post::asOf($timestamp)->where(...)->get();
+```
+
 ## Tracking State Transitions
 
 If your model has fields that represent state (like an order's status or payment status), Rewind can track each transition structurally. You get a queryable history of when and how states changed, separate from general attribute versioning.

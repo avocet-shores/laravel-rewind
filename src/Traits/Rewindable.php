@@ -5,6 +5,7 @@ namespace AvocetShores\LaravelRewind\Traits;
 use AvocetShores\LaravelRewind\Builders\AsOfBuilder;
 use AvocetShores\LaravelRewind\Enums\VersionEventType;
 use AvocetShores\LaravelRewind\Events\RewindVersionCreating;
+use AvocetShores\LaravelRewind\Exceptions\ReconstructedModelIsReadOnlyException;
 use AvocetShores\LaravelRewind\Models\RewindVersion;
 use AvocetShores\LaravelRewind\Services\RewindContext;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -30,6 +31,8 @@ trait Rewindable
 {
     protected bool $disableRewindEvents = false;
 
+    protected bool $isRewindReconstruction = false;
+
     /**
      * Define any additional attributes to exclude from rewind's versions.
      * The default exclusion list includes timestamps, primary key, and current_version.
@@ -54,6 +57,24 @@ trait Rewindable
      */
     public static function bootRewindable(): void
     {
+        static::saving(function ($model) {
+            if ($model->isRewindReconstruction()) {
+                throw new ReconstructedModelIsReadOnlyException(sprintf(
+                    'Refusing to save a reconstructed %s. Reconstructed models represent historical state; persisting one would overwrite the live row. Use $model->replicate()->save() to persist a copy as a new row.',
+                    class_basename($model::class),
+                ));
+            }
+        });
+
+        static::deleting(function ($model) {
+            if ($model->isRewindReconstruction()) {
+                throw new ReconstructedModelIsReadOnlyException(sprintf(
+                    'Refusing to delete a reconstructed %s. Reconstructed models represent historical state; deleting one has no meaningful effect.',
+                    class_basename($model::class),
+                ));
+            }
+        });
+
         static::saved(function ($model) {
             $model->dispatchRewindEvent();
         });
@@ -271,11 +292,34 @@ trait Rewindable
     }
 
     /**
-     * Query scope that reconstructs all matching models at a given point in time.
+     * Query scope that reconstructs all instances of this model at a timestamp.
+     *
+     * The base query must be empty. Pre-asOf filters (where, join, orderBy,
+     * limit, etc.) would apply live-table semantics to reconstructed PHP
+     * attributes and are refused with AsOfBuilderUsageException. Chain
+     * filters on the returned AsOfBuilder instead:
+     *
+     *     Post::asOf($ts)->where('status', 'published')->get();
      */
     public function scopeAsOf(Builder $query, Carbon $timestamp): AsOfBuilder
     {
         return new AsOfBuilder($query, $timestamp);
+    }
+
+    /**
+     * Mark this instance as a Rewind point-in-time reconstruction.
+     *
+     * Reconstructed models are refused from save/update/delete so that
+     * historical state cannot accidentally overwrite the live row.
+     */
+    public function markAsRewindReconstruction(): void
+    {
+        $this->isRewindReconstruction = true;
+    }
+
+    public function isRewindReconstruction(): bool
+    {
+        return $this->isRewindReconstruction;
     }
 
     public function disableRewindEvents(): void
