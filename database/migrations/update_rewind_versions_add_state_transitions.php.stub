@@ -1,0 +1,34 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        $tableName = config('rewind.table_name', 'rewind_versions');
+
+        if (Schema::hasColumn($tableName, 'state_transitions')) {
+            return;
+        }
+
+        Schema::table($tableName, function (Blueprint $table) {
+            $table->json('state_transitions')->nullable();
+        });
+    }
+
+    public function down(): void
+    {
+        $tableName = config('rewind.table_name', 'rewind_versions');
+
+        if (! Schema::hasColumn($tableName, 'state_transitions')) {
+            return;
+        }
+
+        Schema::table($tableName, function (Blueprint $table) {
+            $table->dropColumn('state_transitions');
+        });
+    }
+};

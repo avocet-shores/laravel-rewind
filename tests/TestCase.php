@@ -77,6 +77,16 @@ class TestCase extends Orchestra
             $table->timestamps();
         });
 
+        Schema::create('orders', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->string('status')->default('pending');
+            $table->string('payment_status')->default('unpaid');
+            $table->decimal('total', 10, 2)->default(0);
+            $table->unsignedBigInteger('current_version')->nullable();
+            $table->timestamps();
+        });
+
         // Create a test table that implements soft deletes
         Schema::create('templates', function (Blueprint $table) {
             $table->id();

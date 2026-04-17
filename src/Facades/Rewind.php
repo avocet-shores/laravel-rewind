@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static string batch(callable $callback) Group multiple changes into a single batch, returns batch UUID
  * @method static mixed amendCurrentVersion(callable $callback) Execute callback where changes amend the current version
  * @method static AsOfBuilder modelsAsOf(string $modelClass, \Illuminate\Support\Carbon $timestamp) Reconstruct all instances of a model at a point in time
+ * @method static \Illuminate\Support\Collection replay(Model $model, int $fromVersion, int $toVersion, callable $callback) Iterate through version history with reconstructed state at each step
  */
 class Rewind extends Facade
 {

@@ -25,6 +25,7 @@ class LaravelRewindServiceProvider extends PackageServiceProvider
             ->hasMigration('create_rewind_versions_table')
             ->hasMigration('update_rewind_versions_add_event_type_and_meta')
             ->hasMigration('update_rewind_versions_add_batch_uuid')
+            ->hasMigration('update_rewind_versions_add_state_transitions')
             ->hasCommand(AddVersionTrackingColumnCommand::class)
             ->hasCommand(PruneVersionsCommand::class)
             ->hasCommand(InitVersionsCommand::class);
