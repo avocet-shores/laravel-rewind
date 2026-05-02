@@ -18,12 +18,18 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         php: [8.4, 8.3]
-        laravel: [11.*]
+        laravel: [11.*, 12.*, 13.*]
         stability: [prefer-lowest, prefer-stable]
         include:
           - laravel: 11.*
             testbench: 9.*
             carbon: ^2.63
+          - laravel: 12.*
+            testbench: 9.*
+            carbon: ^3.0
+          - laravel: 13.*
+            testbench: 10.*
+            carbon: ^3.0
 
     name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }} - ${{ matrix.os }}
 
@@ -55,7 +61,7 @@ jobs:
         run: vendor/bin/pest --coverage-clover=coverage.xml --min=80
 
       - name: Upload coverage
-        if: matrix.os == 'ubuntu-latest' && matrix.php == '8.3' && startsWith( matrix.laravel, '11') && matrix.stability == 'prefer-stable'
+        if: matrix.os == 'ubuntu-latest' && matrix.php == '8.3' && startsWith( matrix.laravel, '13') && matrix.stability == 'prefer-stable'
         uses: codecov/codecov-action@v5
         with:
             files: ./coverage.xml
