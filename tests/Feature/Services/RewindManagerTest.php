@@ -489,9 +489,12 @@ const CURRENT_VERSION_CACHE_KEY = 'rewind:tables:%s:has_current_version';
 it('caches when a table has the current_version column', function () {
 
     // Mock the cache
-    $mock = Cache::spy();
+    $lockMock = Mockery::mock(Lock::class);
+    $lockMock->shouldReceive('block')->andReturn(true);
+    $lockMock->shouldReceive('release')->andReturn(true);
 
-    $mock->shouldReceive('lock')->andReturnSelf();
+    $mock = Cache::spy();
+    $mock->shouldReceive('lock')->andReturn($lockMock);
     $mock->shouldReceive('has')->once()->andReturn(false);
     $mock->shouldReceive('has')->andReturn(true);
     $mock->shouldReceive('put')->once();
