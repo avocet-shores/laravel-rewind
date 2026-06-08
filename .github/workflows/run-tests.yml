@@ -62,7 +62,7 @@ jobs:
 
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && matrix.php == '8.3' && startsWith( matrix.laravel, '13') && matrix.stability == 'prefer-stable'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
             files: ./coverage.xml
             token: ${{ secrets.CODECOV_TOKEN }}
